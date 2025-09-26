@@ -17,12 +17,11 @@ export interface IFight {
   name: string;
   startTime: number;
   endTime: number;
-  boss?: number;
+  encounterID?: number;
   difficulty?: number;
   kill?: boolean;
-  percentage?: number;
   fightPercentage?: number;
-  lastPhaseForPercentageDisplay?: number;
+  lastPhase?: number;
 }
 
 export interface IEvent {
@@ -115,12 +114,11 @@ export interface WCLFight {
   name: string;
   startTime: number;
   endTime: number;
-  boss?: number;
+  encounterID?: number;
   difficulty?: number;
   kill?: boolean;
-  percentage?: number;
   fightPercentage?: number;
-  lastPhaseForPercentageDisplay?: number;
+  lastPhase?: number;
 }
 
 export interface WCLEventsResponse {

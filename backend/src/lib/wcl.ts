@@ -28,12 +28,11 @@ interface WCLReportData {
         name: string;
         startTime: number;
         endTime: number;
-        boss?: number;
+        encounterID?: number;
         difficulty?: number;
         kill?: boolean;
-        percentage?: number;
         fightPercentage?: number;
-        lastPhaseForPercentageDisplay?: number;
+        lastPhase?: number;
       }>;
     } | null;
   } | null;
@@ -69,12 +68,11 @@ interface SimpleReport {
     name: string;
     startTime: number;
     endTime: number;
-    boss?: number;
+    encounterID?: number;
     difficulty?: number;
     kill?: boolean;
-    percentage?: number;
     fightPercentage?: number;
-    lastPhaseForPercentageDisplay?: number;
+    lastPhase?: number;
   }>;
   lastUpdated: Date;
   lastFightCount: number;
@@ -195,12 +193,11 @@ export class WarcraftLogsClient {
                 name
                 startTime
                 endTime
-                boss
+                encounterID
                 difficulty
                 kill
-                percentage
                 fightPercentage
-                lastPhaseForPercentageDisplay
+                lastPhase
               }
             }
           }

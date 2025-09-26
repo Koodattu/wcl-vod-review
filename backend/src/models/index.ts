@@ -12,12 +12,11 @@ export interface ReportDocument extends Document {
     name: string;
     startTime: number;
     endTime: number;
-    boss?: number;
+    encounterID?: number;
     difficulty?: number;
     kill?: boolean;
-    percentage?: number;
     fightPercentage?: number;
-    lastPhaseForPercentageDisplay?: number;
+    lastPhase?: number;
   }[];
   lastUpdated: Date;
   lastFightCount: number;
@@ -56,12 +55,11 @@ const FightSchema = new Schema(
     name: { type: String, required: true },
     startTime: { type: Number, required: true },
     endTime: { type: Number, required: true },
-    boss: { type: Number },
+    encounterID: { type: Number },
     difficulty: { type: Number },
     kill: { type: Boolean },
-    percentage: { type: Number },
     fightPercentage: { type: Number },
-    lastPhaseForPercentageDisplay: { type: Number },
+    lastPhase: { type: Number },
   },
   { _id: false }
 );

@@ -23,11 +23,11 @@ export interface Fight {
   name: string;
   startTime: number;
   endTime: number;
-  boss?: number;
+  encounterID?: number;
   difficulty?: number;
   kill?: boolean;
-  percentage?: number;
   fightPercentage?: number;
+  lastPhase?: number;
 }
 
 export interface Report {
