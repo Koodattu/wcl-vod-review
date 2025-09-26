@@ -10,6 +10,8 @@ services:
     build: ./backend
     ports:
       - "3001:3001"
+    env_file:
+      - ./backend/.env
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/wcl_vod_review
     depends_on:
