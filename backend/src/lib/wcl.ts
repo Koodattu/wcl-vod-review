@@ -212,6 +212,8 @@ export class WarcraftLogsClient {
         return null;
       }
 
+      // Filter out trash fights (encounterID <= 0 or missing)
+      const bossFights = reportData.fights.filter((f) => f.encounterID && f.encounterID > 0);
       // Create report object
       const report: SimpleReport = {
         code: reportCode,
@@ -219,9 +221,9 @@ export class WarcraftLogsClient {
         startTime: reportData.startTime,
         endTime: reportData.endTime,
         owner: reportData.owner,
-        fights: reportData.fights,
+        fights: bossFights,
         lastUpdated: new Date(),
-        lastFightCount: reportData.fights.length,
+        lastFightCount: bossFights.length,
       };
 
       // Update or create cache
