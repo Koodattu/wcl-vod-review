@@ -111,7 +111,69 @@ const CachedEventsSchema = new Schema({
 EventSchema.index({ reportCode: 1, fightId: 1, timestamp: 1 });
 CachedEventsSchema.index({ reportCode: 1, fightId: 1, startTime: 1, endTime: 1 });
 
+// Blizzard API models
+export interface BlizzardTokenDocument extends Document {
+  accessToken: string;
+  tokenType: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface AchievementDocument extends Document {
+  id: number;
+  name: string;
+  href: string;
+  lastUpdated: Date;
+}
+
+export interface BossIconDocument extends Document {
+  bossName: string;
+  iconUrl: string;
+  achievementId: number;
+  lastUpdated: Date;
+}
+
+export interface AchievementUpdateLogDocument extends Document {
+  lastFullUpdate: Date;
+  attemptCount: number;
+}
+
+// Blizzard API Schemas
+const BlizzardTokenSchema = new Schema({
+  accessToken: { type: String, required: true },
+  tokenType: { type: String, required: true },
+  expiresAt: { type: Date, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const AchievementSchema = new Schema({
+  id: { type: Number, required: true, unique: true },
+  name: { type: String, required: true },
+  href: { type: String, required: true },
+  lastUpdated: { type: Date, default: Date.now },
+});
+
+const BossIconSchema = new Schema({
+  bossName: { type: String, required: true, unique: true },
+  iconUrl: { type: String, required: true },
+  achievementId: { type: Number, required: true },
+  lastUpdated: { type: Date, default: Date.now },
+});
+
+const AchievementUpdateLogSchema = new Schema({
+  lastFullUpdate: { type: Date, required: true },
+  attemptCount: { type: Number, default: 0 },
+});
+
+// Add indexes for Blizzard API collections
+AchievementSchema.index({ name: "text" }); // For text search
+// Note: id and bossName indexes are already created by unique: true
+
 // Models
 export const Report = mongoose.model<ReportDocument>("Report", ReportSchema);
 export const Event = mongoose.model<EventDocument>("Event", EventSchema);
 export const CachedEvents = mongoose.model<CachedEventsDocument>("CachedEvents", CachedEventsSchema);
+export const BlizzardToken = mongoose.model<BlizzardTokenDocument>("BlizzardToken", BlizzardTokenSchema);
+export const Achievement = mongoose.model<AchievementDocument>("Achievement", AchievementSchema);
+export const BossIcon = mongoose.model<BossIconDocument>("BossIcon", BossIconSchema);
+export const AchievementUpdateLog = mongoose.model<AchievementUpdateLogDocument>("AchievementUpdateLog", AchievementUpdateLogSchema);

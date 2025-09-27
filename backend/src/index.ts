@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import { Database } from "./lib/database";
 import { WarcraftLogsClient } from "./lib/wcl";
+import { BlizzardApiClient } from "./lib/blizzard";
 import { parseYouTubeUrl, parseTwitchUrl, parseWCLUrl, detectVODPlatform } from "./lib/urlParsers";
 
 const app = express();
@@ -17,6 +18,9 @@ const database = Database.getInstance();
 // Initialize WCL client (now environment variables are loaded)
 const wclClient = new WarcraftLogsClient();
 
+// Initialize Blizzard API client
+const blizzardClient = new BlizzardApiClient();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -26,6 +30,16 @@ database.connect().catch((error) => {
   console.error("Failed to connect to database:", error);
   process.exit(1);
 });
+
+// Initialize Blizzard API (achievements) after database connection
+database
+  .connect()
+  .then(() => {
+    blizzardClient.initializeIfNeeded();
+  })
+  .catch((error) => {
+    console.error("Failed to initialize Blizzard API:", error);
+  });
 
 // Basic route
 app.get("/", (req, res) => {
@@ -102,14 +116,29 @@ app.get("/api/wcl/reports/:code", async (req: express.Request, res: express.Resp
       return res.status(404).json({ error: "Report not found" });
     }
 
-    res.json(report);
+    // Extract unique boss names for batch processing
+    const bossNames = report.fights.map((fight) => fight.name);
+
+    // Batch fetch all boss icons
+    const bossIconMap = await blizzardClient.getBossIconUrls(bossNames);
+
+    // Enhance fights with boss icons from the batch result
+    const enhancedFights = report.fights.map((fight) => ({
+      ...fight,
+      iconUrl: bossIconMap.get(fight.name) || null,
+    }));
+
+    const enhancedReport = {
+      ...report,
+      fights: enhancedFights,
+    };
+
+    res.json(enhancedReport);
   } catch (error: any) {
     console.error("Error fetching report:", error);
     res.status(500).json({ error: error.message });
   }
-});
-
-// Get events for a specific fight
+}); // Get events for a specific fight
 app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: express.Response) => {
   try {
     const { code } = req.params;
@@ -134,6 +163,45 @@ app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: expr
     });
   } catch (error: any) {
     console.error("Error fetching events:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get boss icon by name
+app.get("/api/boss-icon/:bossName", async (req: express.Request, res: express.Response) => {
+  try {
+    const { bossName } = req.params;
+
+    if (!bossName) {
+      return res.status(400).json({ error: "Boss name is required" });
+    }
+
+    const iconUrl = await blizzardClient.getBossIconUrl(decodeURIComponent(bossName));
+
+    if (!iconUrl) {
+      return res.status(404).json({
+        error: "Boss icon not found",
+        bossName: decodeURIComponent(bossName),
+      });
+    }
+
+    res.json({
+      bossName: decodeURIComponent(bossName),
+      iconUrl,
+    });
+  } catch (error: any) {
+    console.error("Error fetching boss icon:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manually trigger achievement update (for testing/admin purposes)
+app.post("/api/admin/update-achievements", async (req: express.Request, res: express.Response) => {
+  try {
+    await blizzardClient.updateAchievements();
+    res.json({ message: "Achievements updated successfully" });
+  } catch (error: any) {
+    console.error("Error updating achievements:", error);
     res.status(500).json({ error: error.message });
   }
 });

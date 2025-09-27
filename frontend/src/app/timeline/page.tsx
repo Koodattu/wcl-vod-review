@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import Image from "next/image";
 import YouTubePlayer, { YouTubePlayerRef } from "@/components/YouTubePlayer";
 import Timeline from "@/components/Timeline";
 
@@ -13,6 +14,7 @@ interface Fight {
   boss?: number;
   difficulty?: number;
   kill?: boolean;
+  iconUrl?: string | null;
 }
 
 interface Event {
@@ -228,11 +230,38 @@ function TimelineContent() {
                     selectedFight?.id === fight.id ? "bg-blue-700 border-blue-500" : "bg-[#232336] border-[#35354a] hover:border-blue-400"
                   }`}
                 >
-                  <span className="text-white font-semibold">{fight.name}</span>
-                  <span className="text-gray-400 text-xs">
-                    {minutes}m {seconds}s
-                  </span>
-                  <span className={`ml-2 text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "🏆" : "💀"}</span>
+                  {/* Boss Icon */}
+                  <div className="flex items-center justify-center w-8 h-8 bg-[#1a1a2e] rounded-md border border-[#35354a] flex-shrink-0">
+                    {fight.iconUrl ? (
+                      <Image
+                        src={fight.iconUrl}
+                        alt={`${fight.name} icon`}
+                        width={24}
+                        height={24}
+                        className="rounded-sm object-cover"
+                        unoptimized={true}
+                        onError={(e) => {
+                          // Fallback to placeholder if image fails to load
+                          e.currentTarget.style.display = "none";
+                          const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (placeholder) placeholder.style.display = "block";
+                        }}
+                      />
+                    ) : null}
+                    <span className={`text-lg ${fight.iconUrl ? "hidden" : "block"}`} style={{ display: fight.iconUrl ? "none" : "block" }}>
+                      ⚔️
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="text-white font-semibold truncate">{fight.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-400 text-xs">
+                        {minutes}m {seconds}s
+                      </span>
+                      <span className={`text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "🏆" : "💀"}</span>
+                    </div>
+                  </div>
                 </button>
               );
             })}
