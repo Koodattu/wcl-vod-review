@@ -211,7 +211,7 @@ function TimelineContent() {
           </p>
         </div>
 
-        {/* Fight Selection as Checkboxes */}
+        {/* Fight Selection as Clickable Buttons (no checkbox) */}
         <div className="mb-8">
           <label className="block text-sm font-medium text-gray-200 mb-2">Select Fight:</label>
           <div className="flex flex-wrap gap-3">
@@ -220,26 +220,20 @@ function TimelineContent() {
               const minutes = Math.floor(fightDuration / 60);
               const seconds = fightDuration % 60;
               return (
-                <label
+                <button
                   key={fight.id}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg cursor-pointer border transition-colors duration-150 ${
+                  type="button"
+                  onClick={() => setSelectedFight(fight)}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg cursor-pointer border transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     selectedFight?.id === fight.id ? "bg-blue-700 border-blue-500" : "bg-[#232336] border-[#35354a] hover:border-blue-400"
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedFight?.id === fight.id}
-                    onChange={() => setSelectedFight(fight)}
-                    className="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
-                    style={{ pointerEvents: "none" }}
-                    readOnly
-                  />
                   <span className="text-white font-semibold">{fight.name}</span>
                   <span className="text-gray-400 text-xs">
                     {minutes}m {seconds}s
                   </span>
-                  <span className={`ml-2 text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "✅" : "❌"}</span>
-                </label>
+                  <span className={`ml-2 text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "🏆" : "💀"}</span>
+                </button>
               );
             })}
           </div>
