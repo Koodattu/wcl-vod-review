@@ -95,7 +95,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(({ videoI
     const initializePlayer = () => {
       if (window.YT && playerRef.current && !player) {
         new window.YT.Player(playerRef.current, {
-          height: "400",
+          height: "100%",
           width: "100%",
           videoId: videoId,
           playerVars: {
@@ -140,9 +140,9 @@ const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(({ videoI
 
   return (
     <div className="w-full">
-      <div ref={playerRef} className="w-full" />
+      <div ref={playerRef} className="w-full h-full absolute top-0 left-0" />
       {!isReady && (
-        <div className="w-full h-[400px] bg-gray-200 flex items-center justify-center rounded-lg">
+        <div className="w-full h-full absolute top-0 left-0 bg-gray-200 flex items-center justify-center rounded-lg">
           <div className="text-gray-500">Loading YouTube player...</div>
         </div>
       )}

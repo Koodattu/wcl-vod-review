@@ -41,10 +41,10 @@ export default function TimelinePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="min-h-screen bg-[#101014] flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading timeline...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-300">Loading timeline...</p>
           </div>
         </div>
       }
@@ -167,10 +167,10 @@ function TimelineContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading report data...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-300">Loading report data...</p>
         </div>
       </div>
     );
@@ -178,8 +178,8 @@ function TimelineContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
+        <div className="bg-[#2a1313] border border-red-700 text-red-300 px-6 py-4 rounded-lg shadow">
           <h3 className="font-semibold">Error</h3>
           <p>{error}</p>
         </div>
@@ -189,10 +189,10 @@ function TimelineContent() {
 
   if (!report || !vodId || vodPlatform !== "youtube") {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Missing Data</h2>
-          <p className="text-gray-600">Required parameters are missing or invalid.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Missing Data</h2>
+          <p className="text-gray-300">Required parameters are missing or invalid.</p>
         </div>
       </div>
     );
@@ -201,64 +201,83 @@ function TimelineContent() {
   const fightDurationSeconds = selectedFight ? (selectedFight.endTime - selectedFight.startTime) / 1000 : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-[#101014] flex justify-center">
+      <div className="w-[90vw] px-6 py-10">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{report.title}</h1>
-          <p className="text-gray-600">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">{report.title}</h1>
+          <p className="text-gray-300">
             Report: {wclCode} | Fight: {selectedFight?.name} | Duration: {Math.round(fightDurationSeconds / 60)}m {Math.round(fightDurationSeconds % 60)}s
           </p>
         </div>
 
-        {/* Fight Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Fight:</label>
-          <select
-            value={selectedFight?.id || ""}
-            onChange={(e) => {
-              const fight = report.fights.find((f) => f.id === parseInt(e.target.value));
-              setSelectedFight(fight || null);
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {report.fights.map((fight) => (
-              <option key={fight.id} value={fight.id}>
-                {fight.name} {fight.kill ? "✅" : "❌"}
-              </option>
-            ))}
-          </select>
+        {/* Fight Selection as Checkboxes */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-gray-200 mb-2">Select Fight:</label>
+          <div className="flex flex-wrap gap-3">
+            {report.fights.map((fight) => {
+              const fightDuration = Math.round((fight.endTime - fight.startTime) / 1000);
+              const minutes = Math.floor(fightDuration / 60);
+              const seconds = fightDuration % 60;
+              return (
+                <label
+                  key={fight.id}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg cursor-pointer border transition-colors duration-150 ${
+                    selectedFight?.id === fight.id ? "bg-blue-700 border-blue-500" : "bg-[#232336] border-[#35354a] hover:border-blue-400"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedFight?.id === fight.id}
+                    onChange={() => setSelectedFight(fight)}
+                    className="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                    style={{ pointerEvents: "none" }}
+                    readOnly
+                  />
+                  <span className="text-white font-semibold">{fight.name}</span>
+                  <span className="text-gray-400 text-xs">
+                    {minutes}m {seconds}s
+                  </span>
+                  <span className={`ml-2 text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "✅" : "❌"}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Video Player */}
-        <div className="mb-6">
-          <YouTubePlayer ref={playerRef} videoId={vodId} startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0} onTimeUpdate={setCurrentVideoTime} />
+        {/* Video Player (responsive 16:9, no extra space) */}
+        <div className="mb-8 flex justify-center">
+          <div className="w-full max-w-4xl relative" style={{ paddingTop: "56.25%" }}>
+            <div className="absolute top-0 left-0 w-full h-full bg-black rounded-xl overflow-hidden shadow-lg flex">
+              <YouTubePlayer ref={playerRef} videoId={vodId} startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0} onTimeUpdate={setCurrentVideoTime} />
+            </div>
+          </div>
         </div>
 
         {/* Sync Controls */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <h3 className="font-semibold text-gray-800 mb-3">Sync Controls</h3>
+        <div className="bg-[#181824] rounded-2xl shadow-xl p-6 mb-8 border border-[#35354a]">
+          <h3 className="font-semibold text-gray-100 mb-3">Sync Controls</h3>
           <div className="flex items-center space-x-4">
             <div>
-              <label className="block text-sm text-gray-600">Offset (seconds):</label>
+              <label className="block text-sm text-gray-300">Offset (seconds):</label>
               <input
                 type="number"
                 value={offset}
                 onChange={(e) => setOffset(parseFloat(e.target.value) || 0)}
                 step="0.1"
-                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                className="w-24 px-2 py-1 border border-[#35354a] bg-[#232336] text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101014] text-sm"
               />
             </div>
             <button onClick={handleAlignFightStart} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
               Align Fight Start to Current Time
             </button>
-            <div className="text-sm text-gray-600">Current video time: {Math.round(currentVideoTime)}s</div>
+            <div className="text-sm text-gray-300">Current video time: {Math.round(currentVideoTime)}s</div>
           </div>
         </div>
 
         {/* Timeline */}
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h3 className="font-semibold text-gray-800 mb-3">Timeline ({events.length} events)</h3>
+        <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">
+          <h3 className="font-semibold text-gray-100 mb-3">Timeline ({events.length} events)</h3>
           <Timeline events={getTimelineEvents()} duration={fightDurationSeconds} onEventClick={handleTimelineClick} currentTime={currentVideoTime - offset} />
         </div>
       </div>
