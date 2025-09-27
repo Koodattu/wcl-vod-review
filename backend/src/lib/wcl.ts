@@ -164,6 +164,7 @@ export class WarcraftLogsClient {
   async getReportSummary(reportCode: string): Promise<SimpleReport | null> {
     try {
       // Check cache first
+      console.log(`Checking for cached report: ${reportCode}`);
       const cachedReport = await Report.findOne({ code: reportCode });
 
       if (cachedReport) {
@@ -172,9 +173,13 @@ export class WarcraftLogsClient {
         const oneHour = 60 * 60 * 1000;
 
         if (cacheAge < oneHour) {
-          console.log(`Using cached report for ${reportCode}`);
+          console.log(`Using cached report for ${reportCode} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`);
           return cachedReport.toObject() as SimpleReport;
+        } else {
+          console.log(`Cached report for ${reportCode} is too old (${Math.round(cacheAge / 1000 / 60)} minutes), fetching fresh data`);
         }
+      } else {
+        console.log(`No cached report found for ${reportCode}, fetching from WCL`);
       }
 
       // Fetch from WCL API
@@ -227,10 +232,19 @@ export class WarcraftLogsClient {
       };
 
       // Update or create cache
-      if (cachedReport) {
-        await Report.updateOne({ code: reportCode }, report);
-      } else {
-        await new Report(report).save();
+      try {
+        if (cachedReport) {
+          console.log(`Updating cached report for ${reportCode}`);
+          await Report.updateOne({ code: reportCode }, report);
+          console.log(`✅ Updated cached report for ${reportCode}`);
+        } else {
+          console.log(`Creating new cached report for ${reportCode}`);
+          await new Report(report).save();
+          console.log(`✅ Created new cached report for ${reportCode}`);
+        }
+      } catch (dbError: any) {
+        console.error(`❌ Database error saving report ${reportCode}:`, dbError.message);
+        // Don't fail the request if database save fails, just log and continue
       }
 
       return report;
@@ -346,16 +360,23 @@ export class WarcraftLogsClient {
 
       // Cache the results if we have fight and time info
       if (fightId && startTime && endTime && events.length > 0) {
-        const cacheData = {
-          reportCode,
-          fightId,
-          startTime,
-          endTime,
-          events,
-          lastUpdated: new Date(),
-        };
+        try {
+          const cacheData = {
+            reportCode,
+            fightId,
+            startTime,
+            endTime,
+            events,
+            lastUpdated: new Date(),
+          };
 
-        await CachedEvents.findOneAndUpdate({ reportCode, fightId, startTime, endTime }, cacheData, { upsert: true, new: true });
+          console.log(`Caching ${events.length} events for ${reportCode} fight ${fightId}`);
+          await CachedEvents.findOneAndUpdate({ reportCode, fightId, startTime, endTime }, cacheData, { upsert: true, new: true });
+          console.log(`✅ Cached events for ${reportCode} fight ${fightId}`);
+        } catch (dbError: any) {
+          console.error(`❌ Database error saving events for ${reportCode} fight ${fightId}:`, dbError.message);
+          // Don't fail the request if database save fails, just log and continue
+        }
       }
 
       return {
