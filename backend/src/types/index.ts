@@ -24,6 +24,26 @@ export interface IFight {
   lastPhase?: number;
 }
 
+export interface IEnhancedFight extends IFight {
+  journalID?: number;
+  encounterName?: string;
+  zoneName?: string;
+}
+
+export interface IEnhancedReport extends Omit<IReport, "fights"> {
+  fights: IEnhancedFight[];
+}
+
+export interface IEncounterDetails {
+  id: number;
+  name: string;
+  journalID: number;
+  zone: {
+    id: number;
+    name: string;
+  };
+}
+
 export interface IEvent {
   reportCode: string;
   fightId: number;

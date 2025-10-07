@@ -78,6 +78,23 @@ interface SimpleReport {
   lastFightCount: number;
 }
 
+interface EnhancedSimpleReport extends Omit<SimpleReport, "fights"> {
+  fights: Array<{
+    id: number;
+    name: string;
+    startTime: number;
+    endTime: number;
+    encounterID?: number;
+    journalID?: number;
+    encounterName?: string;
+    zoneName?: string;
+    difficulty?: number;
+    kill?: boolean;
+    fightPercentage?: number;
+    lastPhase?: number;
+  }>;
+}
+
 interface SimpleEvent {
   reportCode: string;
   fightId: number;
@@ -88,6 +105,16 @@ interface SimpleEvent {
   abilityGameID?: number;
   ability?: { name: string; guid: number; type: number };
   data?: any;
+}
+
+interface EncounterDetails {
+  id: number;
+  name: string;
+  journalID: number;
+  zone: {
+    id: number;
+    name: string;
+  };
 }
 
 export class WarcraftLogsClient {
@@ -250,6 +277,152 @@ export class WarcraftLogsClient {
       return report;
     } catch (error: any) {
       console.error(`Error fetching report ${reportCode}:`, error.message);
+      return null;
+    }
+  }
+
+  async getEncounterDetails(encounterID: number): Promise<EncounterDetails | null> {
+    try {
+      const query = `
+        query GetEncounter($encounterID: Int!) {
+          worldData {
+            encounter(id: $encounterID) {
+              id
+              name
+              journalID
+              zone {
+                id
+                name
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = { encounterID };
+      const result = await this.executeGraphQLQuery<{
+        worldData: {
+          encounter: EncounterDetails | null;
+        };
+      }>(query, variables);
+
+      return result.worldData?.encounter || null;
+    } catch (error: any) {
+      console.error(`Error fetching encounter details for ID ${encounterID}:`, error.message);
+      return null;
+    }
+  }
+
+  async getMultipleEncounterDetails(encounterIDs: number[]): Promise<Map<number, EncounterDetails>> {
+    const encounterMap = new Map<number, EncounterDetails>();
+
+    // Remove duplicates
+    const uniqueIDs = [...new Set(encounterIDs)];
+
+    try {
+      // We can query multiple encounters in a single request by using multiple encounter fields
+      // However, GraphQL doesn't support dynamic field names easily, so we'll batch them
+      const batchSize = 10; // Reasonable batch size
+
+      for (let i = 0; i < uniqueIDs.length; i += batchSize) {
+        const batch = uniqueIDs.slice(i, i + batchSize);
+
+        // Create a query with multiple encounter calls
+        const encounterQueries = batch
+          .map(
+            (id, index) =>
+              `encounter${index}: encounter(id: ${id}) {
+            id
+            name
+            journalID
+            zone {
+              id
+              name
+            }
+          }`
+          )
+          .join("\n");
+
+        const query = `
+          query GetMultipleEncounters {
+            worldData {
+              ${encounterQueries}
+            }
+          }
+        `;
+
+        const result = await this.executeGraphQLQuery<{
+          worldData: Record<string, EncounterDetails | null>;
+        }>(query);
+
+        // Process results
+        if (result.worldData) {
+          Object.values(result.worldData).forEach((encounter) => {
+            if (encounter && encounter.id) {
+              encounterMap.set(encounter.id, encounter);
+            }
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error(`Error fetching multiple encounter details:`, error.message);
+      // Fall back to individual requests
+      for (const encounterID of uniqueIDs) {
+        const encounter = await this.getEncounterDetails(encounterID);
+        if (encounter) {
+          encounterMap.set(encounterID, encounter);
+        }
+      }
+    }
+
+    return encounterMap;
+  }
+
+  async getReportWithEncounterDetails(reportCode: string): Promise<EnhancedSimpleReport | null> {
+    try {
+      // First get the basic report
+      const report = await this.getReportSummary(reportCode);
+      if (!report) {
+        return null;
+      }
+
+      // Get unique encounter IDs from fights
+      const encounterIDs = report.fights.map((f) => f.encounterID).filter((id): id is number => id !== undefined && id > 0);
+
+      if (encounterIDs.length === 0) {
+        // No encounters to enhance, return as is but with enhanced type
+        return {
+          ...report,
+          fights: report.fights.map((fight) => ({
+            ...fight,
+            journalID: undefined,
+            encounterName: undefined,
+            zoneName: undefined,
+          })),
+        };
+      }
+
+      // Get encounter details
+      const encounterDetails = await this.getMultipleEncounterDetails(encounterIDs);
+
+      // Enhance fights with encounter details
+      const enhancedFights = report.fights.map((fight) => {
+        const encounterDetail = fight.encounterID ? encounterDetails.get(fight.encounterID) : undefined;
+
+        return {
+          ...fight,
+          journalID: encounterDetail?.journalID,
+          encounterName: encounterDetail?.name,
+          zoneName: encounterDetail?.zone?.name,
+        };
+      });
+
+      return {
+        ...report,
+        fights: enhancedFights,
+      };
+    } catch (error: any) {
+      console.error(`Error fetching enhanced report ${reportCode}:`, error.message);
       return null;
     }
   }

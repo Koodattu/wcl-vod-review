@@ -138,7 +138,48 @@ app.get("/api/wcl/reports/:code", async (req: express.Request, res: express.Resp
     console.error("Error fetching report:", error);
     res.status(500).json({ error: error.message });
   }
-}); // Get events for a specific fight
+});
+
+// Get WCL report with enhanced encounter details (including journalID)
+app.get("/api/wcl/reports/:code/enhanced", async (req: express.Request, res: express.Response) => {
+  try {
+    const { code } = req.params;
+
+    if (!code) {
+      return res.status(400).json({ error: "Report code is required" });
+    }
+
+    const report = await wclClient.getReportWithEncounterDetails(code);
+
+    if (!report) {
+      return res.status(404).json({ error: "Report not found" });
+    }
+
+    // Extract unique boss names for batch processing
+    const bossNames = report.fights.map((fight) => fight.name);
+
+    // Batch fetch all boss icons
+    const bossIconMap = await blizzardClient.getBossIconUrls(bossNames);
+
+    // Enhance fights with boss icons from the batch result
+    const enhancedFights = report.fights.map((fight) => ({
+      ...fight,
+      iconUrl: bossIconMap.get(fight.name) || null,
+    }));
+
+    const enhancedReport = {
+      ...report,
+      fights: enhancedFights,
+    };
+
+    res.json(enhancedReport);
+  } catch (error: any) {
+    console.error("Error fetching enhanced report:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get events for a specific fight
 app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: express.Response) => {
   try {
     const { code } = req.params;
@@ -163,6 +204,29 @@ app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: expr
     });
   } catch (error: any) {
     console.error("Error fetching events:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get encounter details by encounterID (including journalID)
+app.get("/api/wcl/encounters/:encounterID", async (req: express.Request, res: express.Response) => {
+  try {
+    const { encounterID } = req.params;
+    const id = parseInt(encounterID);
+
+    if (!encounterID || isNaN(id)) {
+      return res.status(400).json({ error: "Valid encounter ID is required" });
+    }
+
+    const encounter = await wclClient.getEncounterDetails(id);
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    res.json(encounter);
+  } catch (error: any) {
+    console.error("Error fetching encounter details:", error);
     res.status(500).json({ error: error.message });
   }
 });
