@@ -54,6 +54,16 @@ export interface EventsResponse {
   events: Event[];
 }
 
+export interface VideoMetadata {
+  platform: "youtube" | "twitch";
+  id: string;
+  publishedAt?: string; // YouTube
+  createdAt?: string; // Twitch
+  title: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
 // Parse URLs
 export async function parseURLs(wclUrl: string, vodUrl: string): Promise<ParsedURLs> {
   const response = await fetch(`${API_BASE}/api/parse-urls`, {
@@ -108,6 +118,18 @@ export async function getWCLEvents(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "Failed to fetch events");
+  }
+
+  return response.json();
+}
+
+// Get video metadata (YouTube or Twitch)
+export async function getVideoMetadata(platform: "youtube" | "twitch", videoId: string): Promise<VideoMetadata> {
+  const response = await fetch(`${API_BASE}/api/video-metadata/${platform}/${videoId}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch video metadata");
   }
 
   return response.json();

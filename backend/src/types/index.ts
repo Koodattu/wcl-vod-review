@@ -160,6 +160,7 @@ export interface YouTubeData {
 
 export interface TwitchData {
   id: string;
+  startSeconds?: number;
 }
 
 export interface WCLData {

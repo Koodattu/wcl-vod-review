@@ -43,8 +43,8 @@ export function parseYouTubeUrl(url: string): YouTubeData {
 }
 
 /**
- * Parse Twitch URL to extract video ID
- * Supports twitch.tv/videos/VIDEO_ID format
+ * Parse Twitch URL to extract video ID and start time
+ * Supports twitch.tv/videos/VIDEO_ID format with optional ?t=1h2m3s timestamp
  */
 export function parseTwitchUrl(url: string): TwitchData {
   const regex = /twitch\.tv\/videos\/(\d+)/;
@@ -54,8 +54,21 @@ export function parseTwitchUrl(url: string): TwitchData {
     throw new Error("Invalid Twitch URL");
   }
 
+  const videoId = match[1];
+  let startSeconds = 0;
+
+  // Parse timestamp if present (format: ?t=1h2m3s or ?t=2m30s or ?t=90s)
+  const timestampMatch = url.match(/[?&]t=(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+  if (timestampMatch) {
+    const hours = timestampMatch[1] ? parseInt(timestampMatch[1]) : 0;
+    const minutes = timestampMatch[2] ? parseInt(timestampMatch[2]) : 0;
+    const seconds = timestampMatch[3] ? parseInt(timestampMatch[3]) : 0;
+    startSeconds = hours * 3600 + minutes * 60 + seconds;
+  }
+
   return {
-    id: match[1],
+    id: videoId,
+    startSeconds: startSeconds || 0,
   };
 }
 

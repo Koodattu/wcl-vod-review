@@ -7,6 +7,8 @@ import cors from "cors";
 import { Database } from "./lib/database";
 import { WarcraftLogsClient } from "./lib/wcl";
 import { BlizzardApiClient } from "./lib/blizzard";
+import { YouTubeClient } from "./lib/youtube";
+import { TwitchClient } from "./lib/twitch";
 import { parseYouTubeUrl, parseTwitchUrl, parseWCLUrl, detectVODPlatform } from "./lib/urlParsers";
 
 const app = express();
@@ -20,6 +22,12 @@ const wclClient = new WarcraftLogsClient();
 
 // Initialize Blizzard API client
 const blizzardClient = new BlizzardApiClient();
+
+// Initialize YouTube client
+const youtubeClient = new YouTubeClient();
+
+// Initialize Twitch client
+const twitchClient = new TwitchClient();
 
 // Middleware
 app.use(cors());
@@ -266,6 +274,36 @@ app.post("/api/admin/update-achievements", async (req: express.Request, res: exp
     res.json({ message: "Achievements updated successfully" });
   } catch (error: any) {
     console.error("Error updating achievements:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get video metadata (YouTube or Twitch)
+app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, res: express.Response) => {
+  try {
+    const { platform, videoId } = req.params;
+
+    if (!platform || !videoId) {
+      return res.status(400).json({ error: "Platform and videoId are required" });
+    }
+
+    if (platform !== "youtube" && platform !== "twitch") {
+      return res.status(400).json({ error: "Platform must be 'youtube' or 'twitch'" });
+    }
+
+    let metadata;
+    if (platform === "youtube") {
+      metadata = await youtubeClient.getVideoMetadata(videoId);
+    } else {
+      metadata = await twitchClient.getVideoMetadata(videoId);
+    }
+
+    res.json({
+      platform,
+      ...metadata,
+    });
+  } catch (error: any) {
+    console.error("Error fetching video metadata:", error);
     res.status(500).json({ error: error.message });
   }
 });

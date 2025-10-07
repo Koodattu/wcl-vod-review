@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import Image from "next/image";
-import YouTubePlayer, { YouTubePlayerRef } from "@/components/YouTubePlayer";
+import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import Timeline from "@/components/Timeline";
 
 interface Fight {
@@ -72,7 +72,7 @@ function TimelineContent() {
   const [offset, setOffset] = useState<number>(0);
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0);
 
-  const playerRef = useRef<YouTubePlayerRef>(null);
+  const playerRef = useRef<VideoPlayerRef>(null);
 
   // Load report data
   useEffect(() => {
@@ -189,7 +189,7 @@ function TimelineContent() {
     );
   }
 
-  if (!report || !vodId || vodPlatform !== "youtube") {
+  if (!report || !vodId || !vodPlatform) {
     return (
       <div className="min-h-screen bg-[#101014] flex items-center justify-center">
         <div className="text-center">
@@ -272,7 +272,13 @@ function TimelineContent() {
         <div className="mb-8 flex justify-center">
           <div className="w-full max-w-4xl relative" style={{ paddingTop: "56.25%" }}>
             <div className="absolute top-0 left-0 w-full h-full bg-black rounded-xl overflow-hidden shadow-lg flex">
-              <YouTubePlayer ref={playerRef} videoId={vodId} startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0} onTimeUpdate={setCurrentVideoTime} />
+              <VideoPlayer
+                ref={playerRef}
+                platform={vodPlatform as "youtube" | "twitch"}
+                videoId={vodId}
+                startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0}
+                onTimeUpdate={setCurrentVideoTime}
+              />
             </div>
           </div>
         </div>
