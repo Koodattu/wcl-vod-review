@@ -10,6 +10,7 @@ import { BlizzardApiClient } from "./lib/blizzard";
 import { YouTubeClient } from "./lib/youtube";
 import { TwitchClient } from "./lib/twitch";
 import { parseYouTubeUrl, parseTwitchUrl, parseWCLUrl, detectVODPlatform } from "./lib/urlParsers";
+import { Video } from "./models";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -65,7 +66,7 @@ app.get("/health", (req, res) => {
 });
 
 // Parse URLs endpoint
-app.post("/api/parse-urls", (req: express.Request, res: express.Response) => {
+app.post("/api/parse-urls", async (req: express.Request, res: express.Response) => {
   try {
     const { wclUrl, vodUrl } = req.body;
 
@@ -102,6 +103,63 @@ app.post("/api/parse-urls", (req: express.Request, res: express.Response) => {
         startSeconds: vodData.startSeconds,
       },
     };
+
+    // Proactively fetch and cache video metadata in the background (don't await)
+    // This way the response is fast but we still cache the data
+    const videoId = vodData.id;
+    const platform = vodPlatform as "youtube" | "twitch";
+
+    (async () => {
+      try {
+        // Check if we already have cached video data
+        const cachedVideo = await Video.findOne({ platform, videoId });
+
+        // Define cache expiry (7 days)
+        const CACHE_EXPIRY_DAYS = 7;
+        const now = new Date();
+        const isCacheValid = cachedVideo && cachedVideo.lastUpdated && now.getTime() - cachedVideo.lastUpdated.getTime() < CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+        if (isCacheValid) {
+          return;
+        }
+
+        // Fetch and cache video metadata
+        let metadata;
+        if (platform === "youtube") {
+          metadata = await youtubeClient.getVideoMetadata(videoId);
+        } else {
+          metadata = await twitchClient.getVideoMetadata(videoId);
+        }
+
+        // Save to database
+        const videoData = {
+          platform,
+          videoId,
+          title: metadata.title,
+          description: metadata.description,
+          publishedAt: (metadata as any).publishedAt,
+          createdAt: (metadata as any).createdAt,
+          channelId: (metadata as any).channelId,
+          channelTitle: (metadata as any).channelTitle,
+          url: (metadata as any).url,
+          thumbnailUrl: (metadata as any).thumbnailUrl,
+          duration: (metadata as any).duration,
+          viewCount: (metadata as any).viewCount,
+          userName: (metadata as any).userName,
+          userLogin: (metadata as any).userLogin,
+          lastUpdated: now,
+        };
+
+        await Video.findOneAndUpdate({ platform, videoId }, videoData, {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        });
+      } catch (error: any) {
+        // Log error but don't fail the request
+        console.error(`Failed to cache video metadata:`, error.message);
+      }
+    })();
 
     res.json(response);
   } catch (error: any) {
@@ -291,6 +349,37 @@ app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, r
       return res.status(400).json({ error: "Platform must be 'youtube' or 'twitch'" });
     }
 
+    // Check if we have cached video data
+    const cachedVideo = await Video.findOne({ platform, videoId });
+
+    // Define cache expiry (7 days)
+    const CACHE_EXPIRY_DAYS = 7;
+    const now = new Date();
+    const isCacheValid = cachedVideo && cachedVideo.lastUpdated && now.getTime() - cachedVideo.lastUpdated.getTime() < CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+    if (isCacheValid && cachedVideo) {
+      // Return cached data
+      return res.json({
+        platform: cachedVideo.platform,
+        id: cachedVideo.videoId,
+        title: cachedVideo.title,
+        description: cachedVideo.description,
+        publishedAt: cachedVideo.publishedAt,
+        createdAt: cachedVideo.createdAt,
+        channelId: cachedVideo.channelId,
+        channelTitle: cachedVideo.channelTitle,
+        url: cachedVideo.url,
+        thumbnailUrl: cachedVideo.thumbnailUrl,
+        duration: cachedVideo.duration,
+        viewCount: cachedVideo.viewCount,
+        userName: cachedVideo.userName,
+        userLogin: cachedVideo.userLogin,
+        cached: true,
+        lastUpdated: cachedVideo.lastUpdated,
+      });
+    }
+
+    // Fetch fresh data from API
     let metadata;
     if (platform === "youtube") {
       metadata = await youtubeClient.getVideoMetadata(videoId);
@@ -298,9 +387,36 @@ app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, r
       metadata = await twitchClient.getVideoMetadata(videoId);
     }
 
+    // Save or update video metadata in database
+    const videoData = {
+      platform,
+      videoId,
+      title: metadata.title,
+      description: metadata.description,
+      publishedAt: (metadata as any).publishedAt,
+      createdAt: (metadata as any).createdAt,
+      channelId: (metadata as any).channelId,
+      channelTitle: (metadata as any).channelTitle,
+      url: (metadata as any).url,
+      thumbnailUrl: (metadata as any).thumbnailUrl,
+      duration: (metadata as any).duration,
+      viewCount: (metadata as any).viewCount,
+      userName: (metadata as any).userName,
+      userLogin: (metadata as any).userLogin,
+      lastUpdated: now,
+    };
+
+    await Video.findOneAndUpdate({ platform, videoId }, videoData, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    });
+
     res.json({
       platform,
       ...metadata,
+      cached: false,
+      lastUpdated: now,
     });
   } catch (error: any) {
     console.error("Error fetching video metadata:", error);

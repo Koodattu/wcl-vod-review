@@ -138,6 +138,25 @@ export interface AchievementUpdateLogDocument extends Document {
   attemptCount: number;
 }
 
+// Video metadata cache
+export interface VideoDocument extends Document {
+  platform: "youtube" | "twitch";
+  videoId: string;
+  title: string;
+  description: string;
+  publishedAt?: string; // YouTube uses publishedAt
+  createdAt?: string; // Twitch uses createdAt
+  channelId?: string; // YouTube
+  channelTitle?: string; // YouTube
+  url?: string; // Twitch
+  thumbnailUrl?: string; // Twitch
+  duration?: string; // Twitch
+  viewCount?: number; // Twitch
+  userName?: string; // Twitch
+  userLogin?: string; // Twitch
+  lastUpdated: Date;
+}
+
 // Blizzard API Schemas
 const BlizzardTokenSchema = new Schema({
   accessToken: { type: String, required: true },
@@ -165,9 +184,31 @@ const AchievementUpdateLogSchema = new Schema({
   attemptCount: { type: Number, default: 0 },
 });
 
+// Video metadata cache schema
+const VideoSchema = new Schema({
+  platform: { type: String, required: true, enum: ["youtube", "twitch"] },
+  videoId: { type: String, required: true },
+  title: { type: String, required: true },
+  description: { type: String, default: "" },
+  publishedAt: { type: String }, // YouTube
+  createdAt: { type: String }, // Twitch
+  channelId: { type: String }, // YouTube
+  channelTitle: { type: String }, // YouTube
+  url: { type: String }, // Twitch
+  thumbnailUrl: { type: String }, // Twitch
+  duration: { type: String }, // Twitch
+  viewCount: { type: Number }, // Twitch
+  userName: { type: String }, // Twitch
+  userLogin: { type: String }, // Twitch
+  lastUpdated: { type: Date, default: Date.now },
+});
+
 // Add indexes for Blizzard API collections
 AchievementSchema.index({ name: "text" }); // For text search
 // Note: id and bossName indexes are already created by unique: true
+
+// Add compound unique index for videos
+VideoSchema.index({ platform: 1, videoId: 1 }, { unique: true });
 
 // Models
 export const Report = mongoose.model<ReportDocument>("Report", ReportSchema);
@@ -177,3 +218,4 @@ export const BlizzardToken = mongoose.model<BlizzardTokenDocument>("BlizzardToke
 export const Achievement = mongoose.model<AchievementDocument>("Achievement", AchievementSchema);
 export const BossIcon = mongoose.model<BossIconDocument>("BossIcon", BossIconSchema);
 export const AchievementUpdateLog = mongoose.model<AchievementUpdateLogDocument>("AchievementUpdateLog", AchievementUpdateLogSchema);
+export const Video = mongoose.model<VideoDocument>("Video", VideoSchema);
