@@ -139,7 +139,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerRef, YouTubePlayerProps>(({ videoI
   }, [videoId, startSeconds, onReady, onStateChange, player]);
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full relative">
       <div ref={playerRef} className="w-full h-full absolute top-0 left-0" />
       {!isReady && (
         <div className="w-full h-full absolute top-0 left-0 bg-gray-200 flex items-center justify-center rounded-lg">

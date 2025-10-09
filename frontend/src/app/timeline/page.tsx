@@ -269,17 +269,15 @@ function TimelineContent() {
         </div>
 
         {/* Video Player (responsive 16:9, no extra space) */}
-        <div className="mb-8 flex justify-center">
-          <div className="w-full max-w-4xl relative" style={{ paddingTop: "56.25%" }}>
-            <div className="absolute top-0 left-0 w-full h-full bg-black rounded-xl overflow-hidden shadow-lg flex">
-              <VideoPlayer
-                ref={playerRef}
-                platform={vodPlatform as "youtube" | "twitch"}
-                videoId={vodId}
-                startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0}
-                onTimeUpdate={setCurrentVideoTime}
-              />
-            </div>
+        <div className="mb-8">
+          <div className="w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: "16 / 9" }}>
+            <VideoPlayer
+              ref={playerRef}
+              platform={vodPlatform as "youtube" | "twitch"}
+              videoId={vodId}
+              startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0}
+              onTimeUpdate={setCurrentVideoTime}
+            />
           </div>
         </div>
 
