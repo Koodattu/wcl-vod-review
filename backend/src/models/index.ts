@@ -150,7 +150,7 @@ export interface VideoDocument extends Document {
   channelTitle?: string; // YouTube
   url?: string; // Twitch
   thumbnailUrl?: string; // Twitch
-  duration?: string; // Twitch
+  duration?: number; // Duration in seconds
   viewCount?: number; // Twitch
   userName?: string; // Twitch
   userLogin?: string; // Twitch
@@ -196,7 +196,7 @@ const VideoSchema = new Schema({
   channelTitle: { type: String }, // YouTube
   url: { type: String }, // Twitch
   thumbnailUrl: { type: String }, // Twitch
-  duration: { type: String }, // Twitch
+  duration: { type: Number }, // Duration in seconds
   viewCount: { type: Number }, // Twitch
   userName: { type: String }, // Twitch
   userLogin: { type: String }, // Twitch

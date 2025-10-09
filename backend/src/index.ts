@@ -194,9 +194,13 @@ app.get("/api/wcl/reports/:code", async (req: express.Request, res: express.Resp
       iconUrl: bossIconMap.get(fight.name) || null,
     }));
 
+    // Calculate total duration (endTime already comes from WCL API)
+    const totalDuration = report.endTime - report.startTime; // Duration in milliseconds
+
     const enhancedReport = {
       ...report,
       fights: enhancedFights,
+      totalDuration,
     };
 
     res.json(enhancedReport);
@@ -233,9 +237,13 @@ app.get("/api/wcl/reports/:code/enhanced", async (req: express.Request, res: exp
       iconUrl: bossIconMap.get(fight.name) || null,
     }));
 
+    // Calculate total duration (endTime already comes from WCL API)
+    const totalDuration = report.endTime - report.startTime; // Duration in milliseconds
+
     const enhancedReport = {
       ...report,
       fights: enhancedFights,
+      totalDuration,
     };
 
     res.json(enhancedReport);
@@ -355,9 +363,36 @@ app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, r
     // Define cache expiry (7 days)
     const CACHE_EXPIRY_DAYS = 7;
     const now = new Date();
-    const isCacheValid = cachedVideo && cachedVideo.lastUpdated && now.getTime() - cachedVideo.lastUpdated.getTime() < CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+    const isCacheValid =
+      cachedVideo &&
+      cachedVideo.lastUpdated &&
+      now.getTime() - cachedVideo.lastUpdated.getTime() < CACHE_EXPIRY_DAYS * 24 * 60 * 60 * 1000 &&
+      cachedVideo.duration !== undefined && // Ensure duration exists
+      cachedVideo.duration !== null;
 
     if (isCacheValid && cachedVideo) {
+      // Parse duration if it's stored as a string (old format)
+      let duration = cachedVideo.duration;
+      if (typeof duration === "string") {
+        // Parse Twitch duration string format (e.g., "3h14m40s")
+        const parseDuration = (durationStr: string): number => {
+          let totalSeconds = 0;
+          const hoursMatch = durationStr.match(/(\d+)h/);
+          const minutesMatch = durationStr.match(/(\d+)m/);
+          const secondsMatch = durationStr.match(/(\d+)s/);
+
+          if (hoursMatch) totalSeconds += parseInt(hoursMatch[1], 10) * 3600;
+          if (minutesMatch) totalSeconds += parseInt(minutesMatch[1], 10) * 60;
+          if (secondsMatch) totalSeconds += parseInt(secondsMatch[1], 10);
+
+          return totalSeconds;
+        };
+        duration = parseDuration(duration);
+
+        // Update the database with the parsed value
+        await Video.updateOne({ platform, videoId }, { $set: { duration } });
+      }
+
       // Return cached data
       return res.json({
         platform: cachedVideo.platform,
@@ -370,7 +405,7 @@ app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, r
         channelTitle: cachedVideo.channelTitle,
         url: cachedVideo.url,
         thumbnailUrl: cachedVideo.thumbnailUrl,
-        duration: cachedVideo.duration,
+        duration: duration,
         viewCount: cachedVideo.viewCount,
         userName: cachedVideo.userName,
         userLogin: cachedVideo.userLogin,

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import Image from "next/image";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import Timeline from "@/components/Timeline";
+import TimelineAligner from "@/components/TimelineAligner";
 
 interface Fight {
   id: number;
@@ -36,7 +37,16 @@ interface ReportData {
   title: string;
   startTime: number;
   endTime: number;
+  totalDuration: number;
   fights: Fight[];
+}
+
+interface VideoMetadata {
+  id: string;
+  title: string;
+  duration: number; // in seconds
+  publishedAt?: string;
+  createdAt?: string;
 }
 
 export default function TimelinePage() {
@@ -71,6 +81,7 @@ function TimelineContent() {
   const [error, setError] = useState("");
   const [offset, setOffset] = useState<number>(0);
   const [currentVideoTime, setCurrentVideoTime] = useState<number>(0);
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
 
   const playerRef = useRef<VideoPlayerRef>(null);
 
@@ -103,6 +114,29 @@ function TimelineContent() {
 
     loadReport();
   }, [wclCode, fightIdParam]);
+
+  // Load video metadata
+  useEffect(() => {
+    if (!vodPlatform || !vodId) return;
+
+    const loadVideoMetadata = async () => {
+      try {
+        const response = await fetch(`http://localhost:3001/api/video-metadata/${vodPlatform}/${vodId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load video metadata");
+        }
+
+        setVideoMetadata(data);
+      } catch (err) {
+        console.error("Failed to load video metadata:", err);
+        // Don't set error state, just log it
+      }
+    };
+
+    loadVideoMetadata();
+  }, [vodPlatform, vodId]);
 
   // Load events for selected fight
   useEffect(() => {
@@ -149,12 +183,9 @@ function TimelineContent() {
     [offset]
   );
 
-  const handleAlignFightStart = useCallback(() => {
-    if (playerRef.current && selectedFight) {
-      const currentTime = playerRef.current.getCurrentTime();
-      setOffset(currentTime);
-    }
-  }, [selectedFight]);
+  const handleOffsetChange = useCallback((newOffset: number) => {
+    setOffset(newOffset);
+  }, []);
 
   const getTimelineEvents = useCallback(() => {
     if (!selectedFight) return [];
@@ -281,26 +312,18 @@ function TimelineContent() {
           </div>
         </div>
 
-        {/* Sync Controls */}
-        <div className="bg-[#181824] rounded-2xl shadow-xl p-6 mb-8 border border-[#35354a]">
-          <h3 className="font-semibold text-gray-100 mb-3">Sync Controls</h3>
-          <div className="flex items-center space-x-4">
-            <div>
-              <label className="block text-sm text-gray-300">Offset (seconds):</label>
-              <input
-                type="number"
-                value={offset}
-                onChange={(e) => setOffset(parseFloat(e.target.value) || 0)}
-                step="0.1"
-                className="w-24 px-2 py-1 border border-[#35354a] bg-[#232336] text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101014] text-sm"
-              />
-            </div>
-            <button onClick={handleAlignFightStart} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-              Align Fight Start to Current Time
-            </button>
-            <div className="text-sm text-gray-300">Current video time: {Math.round(currentVideoTime)}s</div>
+        {/* Timeline Aligner */}
+        {videoMetadata && report.totalDuration && videoMetadata.duration && (
+          <div className="bg-[#181824] rounded-2xl shadow-xl p-6 mb-8 border border-[#35354a]">
+            <TimelineAligner
+              wclDuration={report.totalDuration}
+              wclStartTime={report.startTime}
+              videoDuration={videoMetadata.duration}
+              videoStartTime={videoMetadata.publishedAt ? new Date(videoMetadata.publishedAt).getTime() : videoMetadata.createdAt ? new Date(videoMetadata.createdAt).getTime() : 0}
+              onOffsetChange={handleOffsetChange}
+            />
           </div>
-        </div>
+        )}
 
         {/* Timeline */}
         <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">

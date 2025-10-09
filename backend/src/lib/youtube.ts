@@ -8,10 +8,15 @@ interface YouTubeVideoSnippet {
   channelTitle: string;
 }
 
+interface YouTubeContentDetails {
+  duration: string; // ISO 8601 duration format (e.g., "PT1H23M45S")
+}
+
 interface YouTubeVideoResponse {
   items: Array<{
     id: string;
     snippet: YouTubeVideoSnippet;
+    contentDetails: YouTubeContentDetails;
   }>;
 }
 
@@ -28,15 +33,31 @@ export class YouTubeClient {
   }
 
   /**
-   * Get video metadata including published date
+   * Parse ISO 8601 duration string to seconds
+   * @param duration ISO 8601 duration string (e.g., "PT1H23M45S")
+   * @returns Duration in seconds
+   */
+  private parseDuration(duration: string): number {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+
+    const hours = parseInt(match[1] || "0", 10);
+    const minutes = parseInt(match[2] || "0", 10);
+    const seconds = parseInt(match[3] || "0", 10);
+
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  /**
+   * Get video metadata including published date and duration
    * @param videoId YouTube video ID
-   * @returns Video metadata with publishedAt date in ISO 8601 format
+   * @returns Video metadata with publishedAt date in ISO 8601 format and duration in seconds
    */
   async getVideoMetadata(videoId: string) {
     try {
       const response = await axios.get<YouTubeVideoResponse>(`${this.baseUrl}/videos`, {
         params: {
-          part: "snippet",
+          part: "snippet,contentDetails",
           id: videoId,
           key: this.apiKey,
         },
@@ -47,6 +68,8 @@ export class YouTubeClient {
       }
 
       const video = response.data.items[0];
+      const durationSeconds = this.parseDuration(video.contentDetails.duration);
+
       return {
         id: video.id,
         publishedAt: video.snippet.publishedAt,
@@ -54,6 +77,7 @@ export class YouTubeClient {
         description: video.snippet.description,
         channelId: video.snippet.channelId,
         channelTitle: video.snippet.channelTitle,
+        duration: durationSeconds,
       };
     } catch (error: any) {
       if (axios.isAxiosError(error)) {

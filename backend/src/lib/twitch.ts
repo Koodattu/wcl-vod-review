@@ -50,6 +50,25 @@ export class TwitchClient {
   }
 
   /**
+   * Parse Twitch duration string to seconds
+   * @param duration Twitch duration string (e.g., "1h23m45s" or "45m12s" or "30s")
+   * @returns Duration in seconds
+   */
+  private parseDuration(duration: string): number {
+    let totalSeconds = 0;
+
+    const hoursMatch = duration.match(/(\d+)h/);
+    const minutesMatch = duration.match(/(\d+)m/);
+    const secondsMatch = duration.match(/(\d+)s/);
+
+    if (hoursMatch) totalSeconds += parseInt(hoursMatch[1], 10) * 3600;
+    if (minutesMatch) totalSeconds += parseInt(minutesMatch[1], 10) * 60;
+    if (secondsMatch) totalSeconds += parseInt(secondsMatch[1], 10);
+
+    return totalSeconds;
+  }
+
+  /**
    * Authenticate with Twitch API using OAuth Client Credentials flow
    */
   private async authenticate() {
@@ -83,7 +102,7 @@ export class TwitchClient {
   /**
    * Get video metadata including created date
    * @param videoId Twitch video ID (numeric string)
-   * @returns Video metadata with created_at date in ISO 8601 format
+   * @returns Video metadata with created_at date in ISO 8601 format and duration in seconds
    */
   async getVideoMetadata(videoId: string) {
     try {
@@ -104,6 +123,8 @@ export class TwitchClient {
       }
 
       const video = response.data.data[0];
+      const durationSeconds = this.parseDuration(video.duration);
+
       return {
         id: video.id,
         createdAt: video.created_at,
@@ -112,7 +133,7 @@ export class TwitchClient {
         description: video.description,
         url: video.url,
         thumbnailUrl: video.thumbnail_url,
-        duration: video.duration,
+        duration: durationSeconds,
         viewCount: video.view_count,
         userName: video.user_name,
         userLogin: video.user_login,
