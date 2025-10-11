@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SuperTimeline from "@/components/SuperTimeline";
-import TimelineAligner from "@/components/TimelineAligner";
+// import TimelineAligner from "@/components/TimelineAligner"; // Integrated into SuperTimeline
 
 interface Fight {
   id: number;
@@ -100,10 +100,15 @@ function TimelineContent() {
 
         setReport(data);
 
-        // Set initial fight selection
-        const initialFightId = fightIdParam ? parseInt(fightIdParam) : data.fights[0]?.id;
-        const initialFight = data.fights.find((f: Fight) => f.id === initialFightId) || data.fights[0];
-        setSelectedFight(initialFight);
+        // Set initial fight selection only if fightId is provided in URL
+        if (fightIdParam) {
+          const initialFightId = parseInt(fightIdParam);
+          const initialFight = data.fights.find((f: Fight) => f.id === initialFightId);
+          setSelectedFight(initialFight || null);
+        } else {
+          // Don't select any fight by default - let user explore the timeline
+          setSelectedFight(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load report");
       } finally {
@@ -279,7 +284,7 @@ function TimelineContent() {
           </div>
         </div>
 
-        {/* Timeline Aligner */}
+        {/* Timeline Aligner - Commented out as it's now integrated into SuperTimeline
         {videoMetadata && report.totalDuration && videoMetadata.duration && (
           <div className="bg-[#181824] rounded-2xl shadow-xl p-6 mb-8 border border-[#35354a]">
             <TimelineAligner
@@ -291,6 +296,7 @@ function TimelineContent() {
             />
           </div>
         )}
+        */}
 
         {/* Super Timeline */}
         <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">
@@ -304,6 +310,9 @@ function TimelineContent() {
             currentVideoTime={currentVideoTime}
             offset={offset}
             onTimelineClick={handleTimelineClick}
+            videoDuration={videoMetadata?.duration || 0}
+            videoStartTime={videoMetadata?.publishedAt ? new Date(videoMetadata.publishedAt).getTime() : videoMetadata?.createdAt ? new Date(videoMetadata.createdAt).getTime() : 0}
+            onOffsetChange={handleOffsetChange}
           />
         </div>
       </div>
