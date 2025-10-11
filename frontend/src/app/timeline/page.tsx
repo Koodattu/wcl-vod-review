@@ -167,10 +167,13 @@ function TimelineContent() {
           throw new Error(data.error || "Failed to load events");
         }
 
+        console.log("Loaded events for fight", selectedFight.id, ":", data.events?.length, "events", data.events?.slice(0, 3));
+
         // Store events for this fight
         setFightEvents((prev) => {
           const newMap = new Map(prev);
           newMap.set(selectedFight.id, data.events || []);
+          console.log("Stored events in map, total fights with events:", newMap.size);
           return newMap;
         });
       } catch (err) {
@@ -207,7 +210,9 @@ function TimelineContent() {
 
   const getCurrentFightEvents = useCallback(() => {
     if (!selectedFight) return [];
-    return fightEvents.get(selectedFight.id) || [];
+    const events = fightEvents.get(selectedFight.id) || [];
+    console.log("getCurrentFightEvents for fight", selectedFight.id, ":", events.length, "events");
+    return events;
   }, [selectedFight, fightEvents]);
 
   if (loading) {

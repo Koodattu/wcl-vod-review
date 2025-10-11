@@ -54,6 +54,7 @@ export default function SuperTimeline({
 }: SuperTimelineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const iconImagesRef = useRef<Map<string, HTMLImageElement>>(new Map()); // Cache for boss icons
 
   // Timeline state
   const [zoom, setZoom] = useState<number>(1); // pixels per second
@@ -62,8 +63,38 @@ export default function SuperTimeline({
   const [dragStart, setDragStart] = useState({ x: 0, panOffset: 0 });
   const [hoveredFight, setHoveredFight] = useState<Fight | null>(null);
   const [hoveredEvent, setHoveredEvent] = useState<(Event & { x: number; y: number }) | null>(null);
+  const [iconLoadTrigger, setIconLoadTrigger] = useState(0); // Trigger redraw when icons load
 
   const reportDuration = (reportEndTime - reportStartTime) / 1000; // in seconds
+
+  // Debug logging
+  useEffect(() => {
+    console.log("SuperTimeline props:", {
+      reportStartTime,
+      reportEndTime,
+      selectedFightId,
+      eventsCount: events.length,
+      events: events.slice(0, 3),
+    });
+  }, [reportStartTime, reportEndTime, selectedFightId, events]);
+
+  // Load boss icons
+  useEffect(() => {
+    fights.forEach((fight) => {
+      if (fight.iconUrl && !iconImagesRef.current.has(fight.iconUrl)) {
+        const img = new Image();
+        img.crossOrigin = "anonymous"; // Enable CORS for external images
+        img.onload = () => {
+          iconImagesRef.current.set(fight.iconUrl!, img);
+          setIconLoadTrigger((prev) => prev + 1); // Trigger redraw
+        };
+        img.onerror = () => {
+          console.warn(`Failed to load icon: ${fight.iconUrl}`);
+        };
+        img.src = fight.iconUrl;
+      }
+    });
+  }, [fights]);
 
   // Initialize zoom to fit entire report in view
   useEffect(() => {
@@ -207,24 +238,54 @@ export default function SuperTimeline({
       ctx.lineWidth = isSelected ? 3 : 1;
       ctx.strokeRect(x, y, Math.max(w, 2), h);
 
-      // Draw fight name if wide enough
+      // Draw boss icon at the start of the bar if available
+      const iconSize = h - 4; // Icon size slightly smaller than bar height
+      if (fight.iconUrl) {
+        const icon = iconImagesRef.current.get(fight.iconUrl);
+        if (icon && icon.complete) {
+          try {
+            // Draw a small background for the icon
+            ctx.fillStyle = "#1a1a2e";
+            ctx.fillRect(x + 2, y + 2, iconSize, iconSize);
+
+            // Draw the icon
+            ctx.drawImage(icon, x + 2, y + 2, iconSize, iconSize);
+
+            // Draw icon border
+            ctx.strokeStyle = "#35354a";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 2, y + 2, iconSize, iconSize);
+          } catch (e) {
+            console.warn("Failed to draw icon:", e);
+          }
+        }
+      }
+
+      // Draw fight name if wide enough (offset if icon exists)
+      const textOffset = fight.iconUrl ? iconSize + 7 : 5;
       if (w > 60) {
         ctx.fillStyle = "#ffffff";
         ctx.font = "11px sans-serif";
-        ctx.fillText(fight.name, x + 5, y + h / 2 + 4, w - 10);
+        ctx.fillText(fight.name, x + textOffset, y + h / 2 + 4, w - textOffset - 5);
       }
     });
 
     // Draw events for selected fight
     if (selectedFightId && events.length > 0) {
+      console.log("Drawing events:", events.length, "for fight", selectedFightId);
       const selectedFight = fights.find((f) => f.id === selectedFightId);
       if (selectedFight) {
-        const fightStartSec = (selectedFight.startTime - reportStartTime) / 1000;
+        console.log("Selected fight:", selectedFight.name, "start:", selectedFight.startTime, "end:", selectedFight.endTime);
+        console.log("Report start:", reportStartTime);
 
-        events.forEach((event) => {
-          const eventTimeSec = event.timestamp / 1000;
-          const eventRelativeTime = eventTimeSec - fightStartSec;
-          const x = timeToX(fightStartSec + eventRelativeTime);
+        events.forEach((event, idx) => {
+          // Event timestamp is absolute time in ms from report start
+          const eventTimeSec = (event.timestamp - reportStartTime) / 1000;
+          const x = timeToX(eventTimeSec);
+
+          if (idx < 3) {
+            console.log(`Event ${idx}:`, event.type, "timestamp:", event.timestamp, "eventTimeSec:", eventTimeSec, "x:", x, "ability:", event.ability?.name);
+          }
 
           // Only draw if visible
           if (x < 0 || x > width) return;
@@ -269,7 +330,7 @@ export default function SuperTimeline({
         }
       }
     }
-  }, [fights, reportStartTime, selectedFightId, events, zoom, timeToX, xToTime, hoveredFight, currentVideoTime, offset]);
+  }, [fights, reportStartTime, selectedFightId, events, zoom, timeToX, xToTime, hoveredFight, currentVideoTime, offset, iconLoadTrigger]);
 
   // Calculate appropriate time step for markers based on zoom
   const calculateTimeStep = (currentZoom: number) => {
