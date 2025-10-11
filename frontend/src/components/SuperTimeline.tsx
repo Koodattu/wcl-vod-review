@@ -158,20 +158,21 @@ export default function SuperTimeline({
       const selectedFight = fights.find((f) => f.id === selectedFightId);
       if (selectedFight) {
         const containerWidth = containerRef.current.clientWidth - 40;
+        // Fight times are already relative to report start in milliseconds
         const fightDuration = (selectedFight.endTime - selectedFight.startTime) / 1000;
-        const fightStartOffset = (selectedFight.startTime - reportStartTime) / 1000;
+        const fightStartOffset = selectedFight.startTime / 1000;
 
         // Zoom to fit fight width
         const newZoom = Math.max(MIN_ZOOM, Math.min(containerWidth / fightDuration, MAX_ZOOM));
         setZoom(newZoom);
 
-        // Pan to center the fight
-        const fightStartX = fightStartOffset * newZoom;
+        // Pan to center the fight (account for WCL bar offset on timeline)
+        const fightStartX = (fightStartOffset + wclOffsetSec) * newZoom;
         const centerOffset = fightStartX - containerWidth / 2 + (fightDuration * newZoom) / 2;
         setPanOffset(centerOffset);
       }
     }
-  }, [selectedFightId, fights, reportStartTime, reportEndTime]);
+  }, [selectedFightId, fights, wclOffsetSec]);
 
   // Update parent when offsets change (after dragging stops)
   useEffect(() => {
@@ -198,6 +199,9 @@ export default function SuperTimeline({
   );
 
   // Auto-pan to keep current time visible when video is playing
+  // DISABLED - was causing issues with jumping to wrong positions
+  // TODO: Reimplement with correct WCL timeline calculations
+  /*
   useEffect(() => {
     if (selectedFightId && containerRef.current) {
       const selectedFight = fights.find((f) => f.id === selectedFightId);
@@ -222,6 +226,7 @@ export default function SuperTimeline({
       }
     }
   }, [currentVideoTime, selectedFightId, fights, reportStartTime, offset, wclOffsetSec, zoom, timeToX]);
+  */
 
   // Format time for display
   const formatTime = (seconds: number) => {
@@ -448,28 +453,24 @@ export default function SuperTimeline({
     }
 
     // Draw current time indicator
-    if (selectedFightId) {
-      const selectedFight = fights.find((f) => f.id === selectedFightId);
-      if (selectedFight) {
-        // Fight start time is already relative to report start in milliseconds
-        const fightStartSec = selectedFight.startTime / 1000;
-        const currentTime = currentVideoTime - offset;
-        const currentTimeAbsolute = fightStartSec + currentTime;
-        const x = timeToX(currentTimeAbsolute + wclOffsetSec);
+    // Show current video time mapped to WCL timeline
+    if (currentVideoTime !== undefined && offset !== undefined) {
+      // Current video time + offset = corresponding WCL time
+      const wclTime = currentVideoTime + offset;
+      const x = timeToX(wclTime + wclOffsetSec);
 
-        if (x >= 0 && x <= width) {
-          ctx.strokeStyle = "#3b82f6";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(x, PADDING_TOP);
-          ctx.lineTo(x, PADDING_TOP + TIMELINE_HEIGHT);
-          ctx.stroke();
+      if (x >= 0 && x <= width) {
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, PADDING_TOP);
+        ctx.lineTo(x, PADDING_TOP + TIMELINE_HEIGHT);
+        ctx.stroke();
 
-          // Draw time label
-          ctx.fillStyle = "#3b82f6";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(formatTime(currentTime), x - 15, PADDING_TOP - 25);
-        }
+        // Draw time label
+        ctx.fillStyle = "#3b82f6";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(formatTime(wclTime), x - 15, PADDING_TOP - 25);
       }
     }
   }, [
@@ -602,9 +603,6 @@ export default function SuperTimeline({
       if (selectedFightId && events.length > 0) {
         const selectedFight = fights.find((f) => f.id === selectedFightId);
         if (selectedFight) {
-          // Fight start time is already relative to report start in milliseconds
-          const fightStartSec = selectedFight.startTime / 1000;
-
           for (const event of events) {
             // Event timestamp is already relative to report start in milliseconds
             const eventTimeSec = event.timestamp / 1000;
@@ -614,9 +612,10 @@ export default function SuperTimeline({
 
             const distance = Math.sqrt(Math.pow(x - eventX, 2) + Math.pow(y - (eventY + 10), 2));
             if (distance <= 6) {
-              // Clicked on event - calculate relative time from fight start
-              const eventRelativeTime = eventTimeSec - fightStartSec;
-              onTimelineClick(eventRelativeTime);
+              // Clicked on event - convert WCL time to video time
+              // eventTimeSec is in WCL timeline, subtract offset to get video time
+              const videoTime = eventTimeSec - offset;
+              onTimelineClick(videoTime);
               return;
             }
           }
@@ -627,7 +626,23 @@ export default function SuperTimeline({
       setIsDragging(true);
       setDragStart({ x: e.clientX, panOffset });
     },
-    [fights, xToTime, timeToX, onFightSelect, selectedFightId, events, panOffset, onTimelineClick, isLocked, videoOffsetSec, videoDurationSec, wclOffsetSec, reportDuration, zoom]
+    [
+      fights,
+      xToTime,
+      timeToX,
+      onFightSelect,
+      selectedFightId,
+      events,
+      panOffset,
+      onTimelineClick,
+      isLocked,
+      videoOffsetSec,
+      videoDurationSec,
+      wclOffsetSec,
+      reportDuration,
+      zoom,
+      offset,
+    ]
   );
 
   // Handle mouse move for dragging and hover
