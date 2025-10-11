@@ -2,9 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import Image from "next/image";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
-import Timeline from "@/components/Timeline";
+import SuperTimeline from "@/components/SuperTimeline";
 import TimelineAligner from "@/components/TimelineAligner";
 
 interface Fight {
@@ -76,7 +75,7 @@ function TimelineContent() {
 
   const [report, setReport] = useState<ReportData | null>(null);
   const [selectedFight, setSelectedFight] = useState<Fight | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
+  const [fightEvents, setFightEvents] = useState<Map<number, Event[]>>(new Map()); // Store events per fight
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [offset, setOffset] = useState<number>(0);
@@ -142,6 +141,11 @@ function TimelineContent() {
   useEffect(() => {
     if (!wclCode || !selectedFight) return;
 
+    // Check if we already have events for this fight
+    if (fightEvents.has(selectedFight.id)) {
+      return;
+    }
+
     const loadEvents = async () => {
       try {
         const response = await fetch(`http://localhost:3001/api/wcl/reports/${wclCode}/events`, {
@@ -163,15 +167,29 @@ function TimelineContent() {
           throw new Error(data.error || "Failed to load events");
         }
 
-        setEvents(data.events || []);
+        // Store events for this fight
+        setFightEvents((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(selectedFight.id, data.events || []);
+          return newMap;
+        });
       } catch (err) {
         console.error("Failed to load events:", err);
-        setEvents([]);
       }
     };
 
     loadEvents();
-  }, [wclCode, selectedFight]);
+  }, [wclCode, selectedFight, fightEvents]);
+
+  const handleFightSelect = useCallback(
+    (fightId: number) => {
+      const fight = report?.fights.find((f) => f.id === fightId);
+      if (fight) {
+        setSelectedFight(fight);
+      }
+    },
+    [report]
+  );
 
   const handleTimelineClick = useCallback(
     (eventTime: number) => {
@@ -187,16 +205,10 @@ function TimelineContent() {
     setOffset(newOffset);
   }, []);
 
-  const getTimelineEvents = useCallback(() => {
+  const getCurrentFightEvents = useCallback(() => {
     if (!selectedFight) return [];
-
-    return events.map((event) => ({
-      time: (event.timestamp - selectedFight.startTime) / 1000, // Convert to seconds relative to fight start
-      type: event.type,
-      label: event.type === "Deaths" ? `☠️ Death${event.ability ? ` (${event.ability.name})` : ""}` : `⚔️ ${event.ability?.name || "Cast"}`,
-      event: event,
-    }));
-  }, [events, selectedFight]);
+    return fightEvents.get(selectedFight.id) || [];
+  }, [selectedFight, fightEvents]);
 
   if (loading) {
     return (
@@ -231,8 +243,6 @@ function TimelineContent() {
     );
   }
 
-  const fightDurationSeconds = selectedFight ? (selectedFight.endTime - selectedFight.startTime) / 1000 : 0;
-
   return (
     <div className="min-h-screen bg-[#101014] flex justify-center">
       <div className="w-[90vw] px-6 py-10">
@@ -240,63 +250,15 @@ function TimelineContent() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">{report.title}</h1>
           <p className="text-gray-300">
-            Report: {wclCode} | Fight: {selectedFight?.name} | Duration: {Math.round(fightDurationSeconds / 60)}m {Math.round(fightDurationSeconds % 60)}s
+            Report: {wclCode}
+            {selectedFight && (
+              <>
+                {" "}
+                | Fight: {selectedFight.name} | Duration: {Math.round((selectedFight.endTime - selectedFight.startTime) / 60000)}m{" "}
+                {Math.round(((selectedFight.endTime - selectedFight.startTime) % 60000) / 1000)}s
+              </>
+            )}
           </p>
-        </div>
-
-        {/* Fight Selection as Clickable Buttons (no checkbox) */}
-        <div className="mb-8">
-          <label className="block text-sm font-medium text-gray-200 mb-2">Select Fight:</label>
-          <div className="flex flex-wrap gap-3">
-            {report.fights.map((fight) => {
-              const fightDuration = Math.round((fight.endTime - fight.startTime) / 1000);
-              const minutes = Math.floor(fightDuration / 60);
-              const seconds = fightDuration % 60;
-              return (
-                <button
-                  key={fight.id}
-                  type="button"
-                  onClick={() => setSelectedFight(fight)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg cursor-pointer border transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    selectedFight?.id === fight.id ? "bg-blue-700 border-blue-500" : "bg-[#232336] border-[#35354a] hover:border-blue-400"
-                  }`}
-                >
-                  {/* Boss Icon */}
-                  <div className="flex items-center justify-center w-8 h-8 bg-[#1a1a2e] rounded-md border border-[#35354a] flex-shrink-0">
-                    {fight.iconUrl ? (
-                      <Image
-                        src={fight.iconUrl}
-                        alt={`${fight.name} icon`}
-                        width={24}
-                        height={24}
-                        className="rounded-sm object-cover"
-                        unoptimized={true}
-                        onError={(e) => {
-                          // Fallback to placeholder if image fails to load
-                          e.currentTarget.style.display = "none";
-                          const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
-                          if (placeholder) placeholder.style.display = "block";
-                        }}
-                      />
-                    ) : null}
-                    <span className={`text-lg ${fight.iconUrl ? "hidden" : "block"}`} style={{ display: fight.iconUrl ? "none" : "block" }}>
-                      ⚔️
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-start min-w-0">
-                    <span className="text-white font-semibold truncate">{fight.name}</span>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-gray-400 text-xs">
-                        {minutes}m {seconds}s
-                      </span>
-                      <span className={`text-lg font-bold ${fight.kill ? "text-green-400" : "text-red-400"}`}>{fight.kill ? "🏆" : "💀"}</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Video Player (responsive 16:9, no extra space) */}
@@ -325,10 +287,19 @@ function TimelineContent() {
           </div>
         )}
 
-        {/* Timeline */}
+        {/* Super Timeline */}
         <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">
-          <h3 className="font-semibold text-gray-100 mb-3">Timeline ({events.length} events)</h3>
-          <Timeline events={getTimelineEvents()} duration={fightDurationSeconds} onEventClick={handleTimelineClick} currentTime={currentVideoTime - offset} />
+          <SuperTimeline
+            reportStartTime={report.startTime}
+            reportEndTime={report.endTime}
+            fights={report.fights}
+            selectedFightId={selectedFight?.id || null}
+            onFightSelect={handleFightSelect}
+            events={getCurrentFightEvents()}
+            currentVideoTime={currentVideoTime}
+            offset={offset}
+            onTimelineClick={handleTimelineClick}
+          />
         </div>
       </div>
     </div>
