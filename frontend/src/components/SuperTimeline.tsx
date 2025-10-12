@@ -92,7 +92,9 @@ export default function SuperTimeline({
 
     if (videoStartTime && reportStartTime && videoDurationSec > 0) {
       // Try to auto-align based on timestamps
-      const timeDiffSeconds = (reportStartTime - videoStartTime) / 1000;
+      // If video was published before report started, video offset should be negative
+      // videoOffsetSec represents where the video starts on the timeline
+      const timeDiffSeconds = (videoStartTime - reportStartTime) / 1000;
 
       // Only auto-align if the timestamps are within a reasonable range (same day)
       const dayInSeconds = 24 * 60 * 60;
@@ -102,6 +104,7 @@ export default function SuperTimeline({
         setAutoSynced(true);
 
         // Calculate and set the offset
+        // Offset is the difference between video and WCL timelines
         const offsetSec = timeDiffSeconds;
         onOffsetChange(offsetSec);
       } else {
