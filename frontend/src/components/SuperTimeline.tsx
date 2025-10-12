@@ -104,8 +104,9 @@ export default function SuperTimeline({
         setAutoSynced(true);
 
         // Calculate and set the offset
-        // Offset is the difference between video and WCL timelines
-        const offsetSec = timeDiffSeconds;
+        // offset gives us: wclTime = videoTime + offset
+        // videoOffsetSec is where video bar starts, wclOffsetSec is where WCL bar starts
+        const offsetSec = timeDiffSeconds - 0; // videoOffsetSec - wclOffsetSec
         onOffsetChange(offsetSec);
       } else {
         // If not auto-syncing, position video bar below WCL for visibility
@@ -120,6 +121,8 @@ export default function SuperTimeline({
   // Update offset when sync positions change
   useEffect(() => {
     if (isLocked) {
+      // offset gives us: wclTime = videoTime + offset
+      // So: offset = videoOffsetSec - wclOffsetSec
       const offsetSec = videoOffsetSec - wclOffsetSec;
       onOffsetChange(offsetSec);
     }
@@ -458,7 +461,7 @@ export default function SuperTimeline({
     // Draw current time indicator
     // Show current video time mapped to WCL timeline
     if (currentVideoTime !== undefined && offset !== undefined) {
-      // Current video time + offset = corresponding WCL time
+      // Formula: wclTime = videoTime + offset
       const wclTime = currentVideoTime + offset;
       const x = timeToX(wclTime + wclOffsetSec);
 
@@ -615,10 +618,19 @@ export default function SuperTimeline({
 
             const distance = Math.sqrt(Math.pow(x - eventX, 2) + Math.pow(y - (eventY + 10), 2));
             if (distance <= 6) {
-              // Clicked on event - convert WCL time to video time
-              // eventTimeSec is in WCL timeline, subtract offset to get video time
-              const videoTime = eventTimeSec - offset;
-              onTimelineClick(videoTime);
+              // Clicked on event
+              // Event timestamp is relative to report start (WCL timeline position)
+              // Pass the WCL time to parent, which will handle conversion to video time
+              // Parent will do: videoTime = wclTime + offset
+              // So we need to pass: wclTime (which the parent calls 'eventTime')
+
+              console.log("Event clicked:", {
+                eventTimeSec,
+                offset,
+                calculation: `Passing ${eventTimeSec} to parent, which will calculate videoTime = ${eventTimeSec} + ${offset} = ${eventTimeSec + offset}`,
+              });
+
+              onTimelineClick(eventTimeSec);
               return;
             }
           }

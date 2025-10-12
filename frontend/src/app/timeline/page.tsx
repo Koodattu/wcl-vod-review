@@ -202,7 +202,11 @@ function TimelineContent() {
   const handleTimelineClick = useCallback(
     (eventTime: number) => {
       if (playerRef.current) {
-        const videoTime = eventTime + offset;
+        // eventTime is the WCL time (relative to report start)
+        // Formula: wclTime = videoTime + offset
+        // So: videoTime = wclTime - offset
+        const videoTime = eventTime - offset;
+        console.log("handleTimelineClick:", { eventTime, offset, videoTime, calculation: `${eventTime} - ${offset} = ${videoTime}` });
         playerRef.current.seekTo(videoTime);
       }
     },
