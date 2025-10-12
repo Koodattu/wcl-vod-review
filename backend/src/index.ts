@@ -176,7 +176,7 @@ app.get("/api/wcl/reports/:code", async (req: express.Request, res: express.Resp
       return res.status(400).json({ error: "Report code is required" });
     }
 
-    const report = await wclClient.getReportSummary(code);
+    const report = await wclClient.getReportWithEncounterDetails(code);
 
     if (!report) {
       return res.status(404).json({ error: "Report not found" });

@@ -95,6 +95,23 @@ interface EnhancedSimpleReport extends Omit<SimpleReport, "fights"> {
   }>;
 }
 
+interface AbilityInfo {
+  gameID: number;
+  name: string;
+  icon: string;
+  type?: number;
+}
+
+interface ActorInfo {
+  id: number;
+  name: string;
+  type: string; // "Player", "NPC", "Pet"
+  subType?: string; // For players: class name, for NPCs: "NPC" or "Boss"
+  server?: string;
+  icon?: string;
+  petOwner?: number;
+}
+
 interface SimpleEvent {
   reportCode: string;
   fightId: number;
@@ -105,6 +122,10 @@ interface SimpleEvent {
   abilityGameID?: number;
   ability?: { name: string; guid: number; type: number };
   data?: any;
+  // Enhanced data
+  abilityInfo?: AbilityInfo;
+  sourceInfo?: ActorInfo;
+  targetInfo?: ActorInfo;
 }
 
 interface EncounterDetails {
@@ -313,6 +334,73 @@ export class WarcraftLogsClient {
     }
   }
 
+  async getMasterData(reportCode: string): Promise<{
+    abilities: Map<number, AbilityInfo>;
+    actors: Map<number, ActorInfo>;
+  }> {
+    try {
+      const query = `
+        query GetMasterData($code: String!) {
+          reportData {
+            report(code: $code) {
+              masterData {
+                abilities {
+                  gameID
+                  name
+                  icon
+                  type
+                }
+                actors {
+                  id
+                  name
+                  type
+                  subType
+                  server
+                  icon
+                  petOwner
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = { code: reportCode };
+      const result = await this.executeGraphQLQuery<{
+        reportData: {
+          report: {
+            masterData: {
+              abilities: AbilityInfo[];
+              actors: ActorInfo[];
+            } | null;
+          } | null;
+        } | null;
+      }>(query, variables);
+
+      const masterData = result.reportData?.report?.masterData;
+
+      const abilities = new Map<number, AbilityInfo>();
+      const actors = new Map<number, ActorInfo>();
+
+      if (masterData) {
+        masterData.abilities?.forEach((ability) => {
+          abilities.set(ability.gameID, ability);
+        });
+
+        masterData.actors?.forEach((actor) => {
+          actors.set(actor.id, actor);
+        });
+      }
+
+      console.log(`Fetched master data for ${reportCode}: ${abilities.size} abilities, ${actors.size} actors`);
+
+      return { abilities, actors };
+    } catch (error: any) {
+      console.error(`Error fetching master data for ${reportCode}:`, error.message);
+      return { abilities: new Map(), actors: new Map() };
+    }
+  }
+
   async getMultipleEncounterDetails(encounterIDs: number[]): Promise<Map<number, EncounterDetails>> {
     const encounterMap = new Map<number, EncounterDetails>();
 
@@ -417,10 +505,29 @@ export class WarcraftLogsClient {
         };
       });
 
-      return {
+      const enhancedReport = {
         ...report,
         fights: enhancedFights,
       };
+
+      // Update the database with enhanced data
+      try {
+        await Report.updateOne(
+          { code: reportCode },
+          {
+            $set: {
+              fights: enhancedFights,
+              lastUpdated: new Date(),
+            },
+          }
+        );
+        console.log(`✅ Updated cached report ${reportCode} with encounter details (journalID, encounterName, zoneName)`);
+      } catch (dbError: any) {
+        console.error(`❌ Database error updating enhanced report ${reportCode}:`, dbError.message);
+        // Don't fail the request if database update fails, just log and continue
+      }
+
+      return enhancedReport;
     } catch (error: any) {
       console.error(`Error fetching enhanced report ${reportCode}:`, error.message);
       return null;
@@ -460,6 +567,10 @@ export class WarcraftLogsClient {
         }
       }
 
+      // Fetch master data first (abilities and actors)
+      console.log(`Fetching master data for ${reportCode}...`);
+      const { abilities, actors } = await this.getMasterData(reportCode);
+
       // Fetch from WCL API
       const events: SimpleEvent[] = [];
       let nextPageTimestamp: number | undefined;
@@ -489,9 +600,11 @@ export class WarcraftLogsClient {
         const filterExpressions = eventTypes
           .map((type) => {
             if (type === "Deaths") {
-              return "type = 'death'";
+              // Filter to only player deaths (exclude pets and NPCs)
+              return "type = 'death' and target.type = 'Player'";
             } else if (type === "Casts") {
-              return "type = 'cast' and source.disposition = 'enemy'";
+              // Filter to only boss casts (exclude trash mobs)
+              return "type = 'cast' and source.type = 'NPC'";
             }
             return "";
           })
@@ -511,10 +624,12 @@ export class WarcraftLogsClient {
           break;
         }
 
-        // Process events
+        // Process events and enhance with master data
         eventData.data.forEach((event: any) => {
           const eventType = event.type === "death" ? "Deaths" : "Casts";
-          events.push({
+
+          // Build enhanced event
+          const enhancedEvent: SimpleEvent = {
             reportCode,
             fightId: fightId || 0,
             timestamp: event.timestamp,
@@ -524,12 +639,31 @@ export class WarcraftLogsClient {
             abilityGameID: event.abilityGameID,
             ability: event.ability,
             data: event.data,
-          });
+          };
+
+          // Add ability info if available
+          if (event.abilityGameID && abilities.has(event.abilityGameID)) {
+            enhancedEvent.abilityInfo = abilities.get(event.abilityGameID);
+          }
+
+          // Add source actor info if available
+          if (event.sourceID && actors.has(event.sourceID)) {
+            enhancedEvent.sourceInfo = actors.get(event.sourceID);
+          }
+
+          // Add target actor info if available (important for deaths)
+          if (event.targetID && actors.has(event.targetID)) {
+            enhancedEvent.targetInfo = actors.get(event.targetID);
+          }
+
+          events.push(enhancedEvent);
         });
 
         nextPageTimestamp = eventData.nextPageTimestamp;
         pageCount++;
       } while (nextPageTimestamp && pageCount < maxPages);
+
+      console.log(`Fetched ${events.length} events for ${reportCode} fight ${fightId || "all"}`);
 
       // Cache the results if we have fight and time info
       if (fightId && startTime && endTime && events.length > 0) {

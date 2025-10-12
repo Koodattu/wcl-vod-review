@@ -44,6 +44,23 @@ export interface IEncounterDetails {
   };
 }
 
+export interface IAbilityInfo {
+  gameID: number;
+  name: string;
+  icon: string;
+  type?: number;
+}
+
+export interface IActorInfo {
+  id: number;
+  name: string;
+  type: string; // "Player", "NPC", "Pet"
+  subType?: string; // For players: class name, for NPCs: "NPC" or "Boss"
+  server?: string;
+  icon?: string;
+  petOwner?: number;
+}
+
 export interface IEvent {
   reportCode: string;
   fightId: number;
@@ -57,6 +74,10 @@ export interface IEvent {
   target?: any;
   ability?: any;
   data?: any;
+  // Enhanced data
+  abilityInfo?: IAbilityInfo;
+  sourceInfo?: IActorInfo;
+  targetInfo?: IActorInfo;
 }
 
 export interface ICachedEvents {

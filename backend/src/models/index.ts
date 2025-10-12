@@ -13,6 +13,7 @@ export interface ReportDocument extends Document {
     startTime: number;
     endTime: number;
     encounterID?: number;
+    journalID?: number;
     difficulty?: number;
     kill?: boolean;
     fightPercentage?: number;
@@ -37,6 +38,31 @@ export interface EventDocument extends Document {
   unmitigatedAmount?: number;
   ability?: { name: string; guid: number; type: number };
   data?: any;
+  // Enhanced data
+  abilityInfo?: {
+    gameID: number;
+    name: string;
+    icon: string;
+    type?: number;
+  };
+  sourceInfo?: {
+    id: number;
+    name: string;
+    type: string;
+    subType?: string;
+    server?: string;
+    icon?: string;
+    petOwner?: number;
+  };
+  targetInfo?: {
+    id: number;
+    name: string;
+    type: string;
+    subType?: string;
+    server?: string;
+    icon?: string;
+    petOwner?: number;
+  };
 }
 
 export interface CachedEventsDocument extends Document {
@@ -56,6 +82,7 @@ const FightSchema = new Schema(
     startTime: { type: Number, required: true },
     endTime: { type: Number, required: true },
     encounterID: { type: Number },
+    journalID: { type: Number },
     difficulty: { type: Number },
     kill: { type: Boolean },
     fightPercentage: { type: Number },
@@ -96,6 +123,31 @@ const EventSchema = new Schema({
     type: { type: Number },
   },
   data: { type: Schema.Types.Mixed },
+  // Enhanced data
+  abilityInfo: {
+    gameID: { type: Number },
+    name: { type: String },
+    icon: { type: String },
+    type: { type: Number },
+  },
+  sourceInfo: {
+    id: { type: Number },
+    name: { type: String },
+    type: { type: String },
+    subType: { type: String },
+    server: { type: String },
+    icon: { type: String },
+    petOwner: { type: Number },
+  },
+  targetInfo: {
+    id: { type: Number },
+    name: { type: String },
+    type: { type: String },
+    subType: { type: String },
+    server: { type: String },
+    icon: { type: String },
+    petOwner: { type: Number },
+  },
 });
 
 const CachedEventsSchema = new Schema({
