@@ -1,5 +1,5 @@
 import axios from "axios";
-import { BlizzardToken, Achievement, BossIcon, AchievementUpdateLog } from "../models";
+import { AuthToken, Achievement, BossIcon, AchievementUpdateLog } from "../models";
 
 interface BlizzardTokenResponse {
   access_token: string;
@@ -65,7 +65,7 @@ export class BlizzardApiClient {
   private async getAccessToken(): Promise<string> {
     try {
       // Check if we have a valid token in the database
-      const existingToken = await BlizzardToken.findOne().sort({ createdAt: -1 });
+      const existingToken = await AuthToken.findOne({ service: "blizzard" });
 
       if (existingToken && existingToken.expiresAt > new Date()) {
         return existingToken.accessToken;
@@ -94,13 +94,17 @@ export class BlizzardApiClient {
       // Calculate expiration time (subtract 60 seconds for safety buffer)
       const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
 
-      // Store in database (remove old tokens first)
-      await BlizzardToken.deleteMany({});
-      await BlizzardToken.create({
-        accessToken: access_token,
-        tokenType: token_type,
-        expiresAt,
-      });
+      // Store in database (upsert to replace existing token)
+      await AuthToken.findOneAndUpdate(
+        { service: "blizzard" },
+        {
+          service: "blizzard",
+          accessToken: access_token,
+          tokenType: token_type,
+          expiresAt,
+        },
+        { upsert: true, new: true }
+      );
 
       console.log(`✅ New Blizzard token acquired, expires at: ${expiresAt.toISOString()}`);
       return access_token;

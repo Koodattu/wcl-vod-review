@@ -163,8 +163,9 @@ const CachedEventsSchema = new Schema({
 EventSchema.index({ reportCode: 1, fightId: 1, timestamp: 1 });
 CachedEventsSchema.index({ reportCode: 1, fightId: 1, startTime: 1, endTime: 1 });
 
-// Blizzard API models
-export interface BlizzardTokenDocument extends Document {
+// Auth Token models - stores tokens for both Blizzard and WCL APIs
+export interface AuthTokenDocument extends Document {
+  service: "blizzard" | "wcl";
   accessToken: string;
   tokenType: string;
   expiresAt: Date;
@@ -209,8 +210,9 @@ export interface VideoDocument extends Document {
   lastUpdated: Date;
 }
 
-// Blizzard API Schemas
-const BlizzardTokenSchema = new Schema({
+// Auth Token schema - stores tokens for both Blizzard and WCL APIs
+const AuthTokenSchema = new Schema({
+  service: { type: String, required: true, enum: ["blizzard", "wcl"] },
   accessToken: { type: String, required: true },
   tokenType: { type: String, required: true },
   expiresAt: { type: Date, required: true },
@@ -262,11 +264,14 @@ AchievementSchema.index({ name: "text" }); // For text search
 // Add compound unique index for videos
 VideoSchema.index({ platform: 1, videoId: 1 }, { unique: true });
 
+// Add unique index for auth tokens - one token per service
+AuthTokenSchema.index({ service: 1 }, { unique: true });
+
 // Models
 export const Report = mongoose.model<ReportDocument>("Report", ReportSchema);
 export const Event = mongoose.model<EventDocument>("Event", EventSchema);
 export const CachedEvents = mongoose.model<CachedEventsDocument>("CachedEvents", CachedEventsSchema);
-export const BlizzardToken = mongoose.model<BlizzardTokenDocument>("BlizzardToken", BlizzardTokenSchema);
+export const AuthToken = mongoose.model<AuthTokenDocument>("AuthToken", AuthTokenSchema);
 export const Achievement = mongoose.model<AchievementDocument>("Achievement", AchievementSchema);
 export const BossIcon = mongoose.model<BossIconDocument>("BossIcon", BossIconSchema);
 export const AchievementUpdateLog = mongoose.model<AchievementUpdateLogDocument>("AchievementUpdateLog", AchievementUpdateLogSchema);

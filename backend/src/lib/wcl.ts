@@ -1,9 +1,5 @@
 import axios from "axios";
-import NodeCache from "node-cache";
-import { Report, CachedEvents, ReportDocument, CachedEventsDocument } from "../models/index";
-
-// Token cache - expires after 1 hour (tokens are valid for 86400s but we refresh earlier)
-const tokenCache = new NodeCache({ stdTTL: 3600 });
+import { Report, CachedEvents, ReportDocument, CachedEventsDocument, AuthToken } from "../models/index";
 
 interface WCLAccessTokenResponse {
   access_token: string;
@@ -154,9 +150,11 @@ export class WarcraftLogsClient {
   }
 
   async getAccessToken(): Promise<string> {
-    const cached = tokenCache.get<string>("access_token");
-    if (cached) {
-      return cached;
+    // Check if we have a valid token in the database
+    const existingToken = await AuthToken.findOne({ service: "wcl" });
+
+    if (existingToken && existingToken.expiresAt > new Date()) {
+      return existingToken.accessToken;
     }
 
     try {
@@ -169,11 +167,25 @@ export class WarcraftLogsClient {
         },
       });
 
-      const token = response.data.access_token;
-      tokenCache.set("access_token", token);
+      const { access_token, token_type, expires_in } = response.data;
 
-      console.log("WCL access token obtained successfully");
-      return token;
+      // Calculate expiration time (subtract 60 seconds for safety buffer)
+      const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000);
+
+      // Store in database (upsert to replace existing token)
+      await AuthToken.findOneAndUpdate(
+        { service: "wcl" },
+        {
+          service: "wcl",
+          accessToken: access_token,
+          tokenType: token_type,
+          expiresAt,
+        },
+        { upsert: true, new: true }
+      );
+
+      console.log(`✅ WCL access token acquired, expires at: ${expiresAt.toISOString()}`);
+      return access_token;
     } catch (error: any) {
       console.error("Error getting WCL access token:", error.response?.data || error.message);
       throw new Error("Failed to authenticate with Warcraft Logs API");
