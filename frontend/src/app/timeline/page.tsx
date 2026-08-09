@@ -28,7 +28,23 @@ interface Event {
     guid: number;
     type: number;
   };
+  abilityInfo?: {
+    gameID: number;
+    name: string;
+    icon?: string | null;
+    type?: number;
+  };
+  sourceInfo?: ActorInfo;
+  targetInfo?: ActorInfo;
   data?: unknown;
+}
+
+interface ActorInfo {
+  id: number;
+  name: string;
+  type: string;
+  subType?: string | null;
+  icon?: string | null;
 }
 
 interface ReportData {
@@ -83,6 +99,14 @@ function TimelineContent() {
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
 
   const playerRef = useRef<VideoPlayerRef>(null);
+  const syncStorageKey = wclCode && vodPlatform && vodId ? `wcl-vod-review:sync:${wclCode}:${vodPlatform}:${vodId}` : null;
+  const [savedOffset, setSavedOffset] = useState<number | null>(() => {
+    if (typeof window === "undefined" || !syncStorageKey) return null;
+    const storedValue = window.localStorage.getItem(syncStorageKey);
+    if (storedValue === null) return null;
+    const storedOffset = Number(storedValue);
+    return Number.isFinite(storedOffset) ? storedOffset : null;
+  });
 
   // Load report data
   useEffect(() => {
@@ -213,6 +237,21 @@ function TimelineContent() {
     setOffset(newOffset);
   }, []);
 
+  const handleOffsetCommit = useCallback(
+    (newOffset: number) => {
+      if (!syncStorageKey) return;
+      window.localStorage.setItem(syncStorageKey, String(newOffset));
+      setSavedOffset(newOffset);
+    },
+    [syncStorageKey]
+  );
+
+  const handleOffsetReset = useCallback(() => {
+    if (!syncStorageKey) return;
+    window.localStorage.removeItem(syncStorageKey);
+    setSavedOffset(null);
+  }, [syncStorageKey]);
+
   const getCurrentFightEvents = useCallback(() => {
     if (!selectedFight) return [];
     return fightEvents.get(selectedFight.id) || [];
@@ -298,6 +337,10 @@ function TimelineContent() {
             videoDuration={videoMetadata?.duration || 0}
             videoStartTime={videoMetadata?.publishedAt ? new Date(videoMetadata.publishedAt).getTime() : videoMetadata?.createdAt ? new Date(videoMetadata.createdAt).getTime() : 0}
             onOffsetChange={handleOffsetChange}
+            onOffsetCommit={handleOffsetCommit}
+            onOffsetReset={handleOffsetReset}
+            initialOffset={savedOffset}
+            autoSyncLatencySeconds={vodPlatform === "twitch" ? 4.5 : 0}
           />
         </div>
       </div>

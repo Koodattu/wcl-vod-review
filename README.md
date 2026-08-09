@@ -20,7 +20,8 @@ The app creates an interactive timeline where you can see exactly what was happe
 ### 📊 Interactive Timeline
 
 - Visual representation of all boss fights in a raid session
-- Combat events displayed as markers (player deaths, boss abilities)
+- One timeline row per NPC ability, with Warcraft Logs spell icons
+- One compact death row with named, class-colored markers
 - Current video position indicator
 - Zoom and pan to explore different time ranges
 - Boss icons pulled directly from the game
@@ -37,7 +38,8 @@ Click any event on the timeline to jump directly to that moment in the video. Pe
 ### 🔄 Smart Synchronization
 
 - Automatic timeline sync based on timestamps
-- Manual adjustment controls for fine-tuning
+- Twitch stream-delay compensation plus 0.5-second fine-tuning controls
+- Per-report/VOD calibration saved in the browser
 - Lock/unlock toggle to prevent accidental changes
 
 ### 📹 Dual Platform Support
@@ -61,7 +63,7 @@ Works with both:
 
 Built with modern web technologies:
 
-- **Frontend**: Next.js 15 with React 19 and TypeScript
+- **Frontend**: Next.js 16 with React 19 and TypeScript
 - **Backend**: Express API with TypeScript
 - **Database**: MongoDB for caching API responses
 - **Deployment**: Docker Compose for easy setup
@@ -126,7 +128,7 @@ Only the frontend port is published; MongoDB and the backend stay on the private
 5. Select a fight from the timeline
 6. Click on events to jump to specific moments in the video
 7. Use scroll to zoom, drag to pan the timeline
-8. Unlock the sync controls to manually adjust if needed
+8. Use the Earlier/Later buttons for fine calibration, or unlock the bars for larger adjustments
 
 ## Project Structure
 
