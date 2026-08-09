@@ -78,41 +78,44 @@ Integrates with:
 ### Prerequisites
 
 - Docker and Docker Compose
-- API credentials for:
-  - Warcraft Logs (OAuth client)
-  - Battle.net (OAuth client)
-  - YouTube (API key)
-  - Twitch (OAuth client)
+- Warcraft Logs OAuth credentials
+- YouTube Data API credentials and/or Twitch Helix credentials for the VOD platforms you use
+- Optional Battle.net API credentials for boss icons
 
 ### Running the Application
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/wcl-vod-review.git
+git clone https://github.com/Koodattu/wcl-vod-review.git
 cd wcl-vod-review
 ```
 
-2. Create a `.env` file with your API credentials:
+2. Create the backend environment file and fill in the credentials you use:
+
+```bash
+cp backend/.env.example backend/.env
+```
 
 ```env
 WCL_CLIENT_ID=your_wcl_client_id
 WCL_CLIENT_SECRET=your_wcl_client_secret
-BLIZZARD_CLIENT_ID=your_blizzard_client_id
-BLIZZARD_CLIENT_SECRET=your_blizzard_client_secret
 YT_API_KEY=your_youtube_api_key
 TWITCH_CLIENT_ID=your_twitch_client_id
 TWITCH_CLIENT_SECRET=your_twitch_client_secret
-MONGODB_URI=mongodb://mongodb:27017/wcl-vod-review
+BLIZZARD_CLIENT_ID=your_blizzard_client_id
+BLIZZARD_CLIENT_SECRET=your_blizzard_client_secret
 ```
 
 3. Start the application:
 
 ```bash
-docker-compose up
+docker compose up --build
 ```
 
 4. Open your browser to `http://localhost:3000`
+
+Only the frontend port is published; MongoDB and the backend stay on the private Compose network. For an internet deployment, put the frontend behind HTTPS. Twitch requires HTTPS for embeds on non-localhost domains.
 
 ## How to Use
 

@@ -25,11 +25,7 @@ export class YouTubeClient {
   private baseUrl = "https://www.googleapis.com/youtube/v3";
 
   constructor() {
-    const apiKey = process.env.YT_API_KEY;
-    if (!apiKey) {
-      throw new Error("YT_API_KEY is not set in environment variables");
-    }
-    this.apiKey = apiKey;
+    this.apiKey = process.env.YT_API_KEY || "";
   }
 
   /**
@@ -54,6 +50,10 @@ export class YouTubeClient {
    * @returns Video metadata with publishedAt date in ISO 8601 format and duration in seconds
    */
   async getVideoMetadata(videoId: string) {
+    if (!this.apiKey) {
+      throw new Error("YT_API_KEY is required to load YouTube video metadata");
+    }
+
     try {
       const response = await axios.get<YouTubeVideoResponse>(`${this.baseUrl}/videos`, {
         params: {

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SuperTimeline from "@/components/SuperTimeline";
-// import TimelineAligner from "@/components/TimelineAligner"; // Integrated into SuperTimeline
+import { API_BASE } from "@/lib/api";
 
 interface Fight {
   id: number;
@@ -91,7 +91,7 @@ function TimelineContent() {
     const loadReport = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:3001/api/wcl/reports/${wclCode}`);
+        const response = await fetch(`${API_BASE}/wcl/reports/${wclCode}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -125,7 +125,7 @@ function TimelineContent() {
 
     const loadVideoMetadata = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/video-metadata/${vodPlatform}/${vodId}`);
+        const response = await fetch(`${API_BASE}/video-metadata/${vodPlatform}/${vodId}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -153,7 +153,7 @@ function TimelineContent() {
 
     const loadEvents = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/wcl/reports/${wclCode}/events`, {
+        const response = await fetch(`${API_BASE}/wcl/reports/${wclCode}/events`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -172,13 +172,10 @@ function TimelineContent() {
           throw new Error(data.error || "Failed to load events");
         }
 
-        console.log("Loaded events for fight", selectedFight.id, ":", data.events?.length, "events", data.events?.slice(0, 3));
-
         // Store events for this fight
         setFightEvents((prev) => {
           const newMap = new Map(prev);
           newMap.set(selectedFight.id, data.events || []);
-          console.log("Stored events in map, total fights with events:", newMap.size);
           return newMap;
         });
       } catch (err) {
@@ -206,7 +203,6 @@ function TimelineContent() {
         // Formula: wclTime = videoTime + offset
         // So: videoTime = wclTime - offset
         const videoTime = eventTime - offset;
-        console.log("handleTimelineClick:", { eventTime, offset, videoTime, calculation: `${eventTime} - ${offset} = ${videoTime}` });
         playerRef.current.seekTo(videoTime);
       }
     },
@@ -219,9 +215,7 @@ function TimelineContent() {
 
   const getCurrentFightEvents = useCallback(() => {
     if (!selectedFight) return [];
-    const events = fightEvents.get(selectedFight.id) || [];
-    console.log("getCurrentFightEvents for fight", selectedFight.id, ":", events.length, "events");
-    return events;
+    return fightEvents.get(selectedFight.id) || [];
   }, [selectedFight, fightEvents]);
 
   if (loading) {
@@ -288,23 +282,10 @@ function TimelineContent() {
           </div>
         </div>
 
-        {/* Timeline Aligner - Commented out as it's now integrated into SuperTimeline
-        {videoMetadata && report.totalDuration && videoMetadata.duration && (
-          <div className="bg-[#181824] rounded-2xl shadow-xl p-6 mb-8 border border-[#35354a]">
-            <TimelineAligner
-              wclDuration={report.totalDuration}
-              wclStartTime={report.startTime}
-              videoDuration={videoMetadata.duration}
-              videoStartTime={videoMetadata.publishedAt ? new Date(videoMetadata.publishedAt).getTime() : videoMetadata.createdAt ? new Date(videoMetadata.createdAt).getTime() : 0}
-              onOffsetChange={handleOffsetChange}
-            />
-          </div>
-        )}
-        */}
-
         {/* Super Timeline */}
         <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">
           <SuperTimeline
+            key={`${wclCode}-${videoMetadata?.duration || 0}-${videoMetadata?.publishedAt || videoMetadata?.createdAt || "unknown"}`}
             reportStartTime={report.startTime}
             reportEndTime={report.endTime}
             fights={report.fights}

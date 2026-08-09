@@ -40,6 +40,7 @@ interface BlizzardAchievementMedia {
 export class BlizzardApiClient {
   private readonly clientId: string;
   private readonly clientSecret: string;
+  private readonly isConfigured: boolean;
   private readonly oauthUrl = "https://oauth.battle.net/token";
   private readonly apiBaseUrl = "https://us.api.blizzard.com";
   private readonly namespace = "static-us";
@@ -51,18 +52,19 @@ export class BlizzardApiClient {
   // In-memory cache for ongoing boss icon requests to prevent duplicates
   private readonly pendingBossIconRequests = new Map<string, Promise<string | null>>();
   constructor() {
-    this.clientId = process.env.BLIZZARD_CLIENT_ID!;
-    this.clientSecret = process.env.BLIZZARD_CLIENT_SECRET!;
-
-    if (!this.clientId || !this.clientSecret) {
-      throw new Error("Blizzard API credentials not found in environment variables");
-    }
+    this.clientId = process.env.BLIZZARD_CLIENT_ID || "";
+    this.clientSecret = process.env.BLIZZARD_CLIENT_SECRET || "";
+    this.isConfigured = Boolean(this.clientId && this.clientSecret);
   }
 
   /**
    * Get a valid access token, fetching a new one if necessary
    */
   private async getAccessToken(): Promise<string> {
+    if (!this.isConfigured) {
+      throw new Error("Blizzard API credentials are not configured");
+    }
+
     try {
       // Check if we have a valid token in the database
       const existingToken = await AuthToken.findOne({ service: "blizzard" });
@@ -282,6 +284,8 @@ export class BlizzardApiClient {
    * Get boss icon URL by boss name (main entry point)
    */
   public async getBossIconUrl(bossName: string): Promise<string | null> {
+    if (!this.isConfigured) return null;
+
     // Check if there's already a pending request for this boss name
     if (this.pendingBossIconRequests.has(bossName)) {
       console.log(`⏳ Waiting for existing request for boss: ${bossName}`);
@@ -352,6 +356,10 @@ export class BlizzardApiClient {
     // Deduplicate boss names
     const uniqueBossNames = [...new Set(bossNames)];
 
+    if (!this.isConfigured) {
+      return new Map(uniqueBossNames.map((bossName) => [bossName, null]));
+    }
+
     if (uniqueBossNames.length < bossNames.length) {
       console.log(`🔄 Deduplicated ${bossNames.length} boss names to ${uniqueBossNames.length} unique names`);
     }
@@ -372,6 +380,8 @@ export class BlizzardApiClient {
    * Initialize achievements if none exist
    */
   public async initializeIfNeeded(): Promise<void> {
+    if (!this.isConfigured) return;
+
     try {
       const count = await Achievement.countDocuments();
       if (count === 0) {

@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
-import cors from "cors";
 import { Database } from "./lib/database";
 import { WarcraftLogsClient } from "./lib/wcl";
 import { BlizzardApiClient } from "./lib/blizzard";
@@ -31,24 +30,7 @@ const youtubeClient = new YouTubeClient();
 const twitchClient = new TwitchClient();
 
 // Middleware
-app.use(cors());
 app.use(express.json());
-
-// Connect to database
-database.connect().catch((error) => {
-  console.error("Failed to connect to database:", error);
-  process.exit(1);
-});
-
-// Initialize Blizzard API (achievements) after database connection
-database
-  .connect()
-  .then(() => {
-    blizzardClient.initializeIfNeeded();
-  })
-  .catch((error) => {
-    console.error("Failed to initialize Blizzard API:", error);
-  });
 
 // Basic route
 app.get("/", (req, res) => {
@@ -58,8 +40,8 @@ app.get("/", (req, res) => {
 // Health check route
 app.get("/health", (req, res) => {
   const dbConnected = database.getConnectionState();
-  res.json({
-    status: "OK",
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? "ok" : "unhealthy",
     timestamp: new Date().toISOString(),
     database: dbConnected ? "connected" : "disconnected",
   });
@@ -263,7 +245,7 @@ app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: expr
       return res.status(400).json({ error: "Report code is required" });
     }
 
-    if (!startTime || !endTime) {
+    if (typeof startTime !== "number" || !Number.isFinite(startTime) || typeof endTime !== "number" || !Number.isFinite(endTime)) {
       return res.status(400).json({
         error: "startTime and endTime are required",
       });
@@ -459,21 +441,36 @@ app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, r
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 WCL VOD Review API ready`);
+let server: ReturnType<typeof app.listen> | undefined;
+
+async function start(): Promise<void> {
+  await database.connect();
+  void blizzardClient.initializeIfNeeded();
+
+  server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log("WCL VOD Review API ready");
+  });
+}
+
+start().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`${signal} received, shutting down gracefully`);
+
+  if (server) {
+    await new Promise<void>((resolve, reject) => {
+      server?.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+
+  await database.disconnect();
+  process.exit(0);
+}
 
 // Graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, shutting down gracefully");
-  await database.disconnect();
-  process.exit(0);
-});
-
-process.on("SIGINT", async () => {
-  console.log("SIGINT received, shutting down gracefully");
-  await database.disconnect();
-  process.exit(0);
-});
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));

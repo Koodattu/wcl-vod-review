@@ -36,10 +36,6 @@ export class Database {
         this.isConnected = false;
       });
 
-      process.on("SIGINT", async () => {
-        await this.disconnect();
-        process.exit(0);
-      });
     } catch (error) {
       console.error("❌ Error connecting to MongoDB:", error);
       throw error;

@@ -1,103 +1,109 @@
-import { YouTubeData, TwitchData, WCLData } from "../types/index";
+import { TwitchData, WCLData, YouTubeData } from "../types";
 
-/**
- * Parse YouTube URL to extract video ID and start time
- * Supports various YouTube URL formats
- */
-export function parseYouTubeUrl(url: string): YouTubeData {
-  // Regular expressions for different YouTube URL formats
-  const patterns = [
-    // youtube.com/watch?v=VIDEO_ID&t=123s
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?:.*[&?]t=(\d+))?/,
-    // youtube.com/watch?v=VIDEO_ID&t=1m23s
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?:.*[&?]t=(\d+)m(\d+)s)?/,
-    // youtube.com/watch?v=VIDEO_ID&t=1h2m3s
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?:.*[&?]t=(\d+)h(\d+)m(\d+)s)?/,
-  ];
+const YOUTUBE_HOSTS = new Set(["youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"]);
+const TWITCH_HOSTS = new Set(["twitch.tv", "m.twitch.tv"]);
 
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      const videoId = match[1];
-      let startSeconds = 0;
-
-      if (match[2] && !match[3] && !match[4]) {
-        // Simple seconds format (t=123)
-        startSeconds = parseInt(match[2]);
-      } else if (match[2] && match[3] && !match[4]) {
-        // Minutes and seconds format (t=1m23s)
-        startSeconds = parseInt(match[2]) * 60 + parseInt(match[3]);
-      } else if (match[2] && match[3] && match[4]) {
-        // Hours, minutes and seconds format (t=1h2m3s)
-        startSeconds = parseInt(match[2]) * 3600 + parseInt(match[3]) * 60 + parseInt(match[4]);
-      }
-
-      return {
-        id: videoId,
-        startSeconds: startSeconds || 0,
-      };
+function parseUrl(value: string, service: string): URL {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error();
     }
+    return url;
+  } catch {
+    throw new Error(`Invalid ${service} URL`);
   }
-
-  throw new Error("Invalid YouTube URL");
 }
 
-/**
- * Parse Twitch URL to extract video ID and start time
- * Supports twitch.tv/videos/VIDEO_ID format with optional ?t=1h2m3s timestamp
- */
-export function parseTwitchUrl(url: string): TwitchData {
-  const regex = /twitch\.tv\/videos\/(\d+)/;
-  const match = url.match(regex);
+function normalizedHostname(url: URL): string {
+  return url.hostname.toLowerCase().replace(/^www\./, "");
+}
 
-  if (!match) {
-    throw new Error("Invalid Twitch URL");
+function parseStartSeconds(value: string | null): number {
+  if (!value) return 0;
+
+  const timestamp = value.trim().toLowerCase();
+  if (/^\d+$/.test(timestamp)) {
+    return Number.parseInt(timestamp, 10);
   }
 
-  const videoId = match[1];
-  let startSeconds = 0;
+  const match = timestamp.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (!match || !match.slice(1).some(Boolean)) return 0;
 
-  // Parse timestamp if present (format: ?t=1h2m3s or ?t=2m30s or ?t=90s)
-  const timestampMatch = url.match(/[?&]t=(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
-  if (timestampMatch) {
-    const hours = timestampMatch[1] ? parseInt(timestampMatch[1]) : 0;
-    const minutes = timestampMatch[2] ? parseInt(timestampMatch[2]) : 0;
-    const seconds = timestampMatch[3] ? parseInt(timestampMatch[3]) : 0;
-    startSeconds = hours * 3600 + minutes * 60 + seconds;
+  return Number.parseInt(match[1] || "0", 10) * 3600 + Number.parseInt(match[2] || "0", 10) * 60 + Number.parseInt(match[3] || "0", 10);
+}
+
+/** Parse a supported YouTube URL into its video ID and optional start time. */
+export function parseYouTubeUrl(value: string): YouTubeData {
+  const url = parseUrl(value, "YouTube");
+  const hostname = normalizedHostname(url);
+
+  if (!YOUTUBE_HOSTS.has(hostname)) {
+    throw new Error("Invalid YouTube URL");
+  }
+
+  let videoId: string | null = null;
+  if (hostname === "youtu.be") {
+    videoId = url.pathname.split("/").filter(Boolean)[0] || null;
+  } else if (url.pathname === "/watch") {
+    videoId = url.searchParams.get("v");
+  } else {
+    const match = url.pathname.match(/^\/(?:embed|live|shorts)\/([A-Za-z0-9_-]{11})(?:\/|$)/);
+    videoId = match?.[1] || null;
+  }
+
+  if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    throw new Error("Invalid YouTube URL");
   }
 
   return {
     id: videoId,
-    startSeconds: startSeconds || 0,
+    startSeconds: parseStartSeconds(url.searchParams.get("t") || url.searchParams.get("start")),
   };
 }
 
-/**
- * Parse Warcraft Logs URL to extract report code and fight ID
- */
-export function parseWCLUrl(url: string): WCLData {
-  const regex = /warcraftlogs\.com\/reports\/([A-Za-z0-9]+)(?:#fight=(\d+))?/;
-  const match = url.match(regex);
+/** Parse a Twitch VOD URL and its optional start time. */
+export function parseTwitchUrl(value: string): TwitchData {
+  const url = parseUrl(value, "Twitch");
+  const hostname = normalizedHostname(url);
+  const match = url.pathname.match(/^\/videos\/(\d+)(?:\/|$)/);
 
-  if (!match) {
-    throw new Error("Invalid Warcraft Logs URL");
+  if (!TWITCH_HOSTS.has(hostname) || !match) {
+    throw new Error("Invalid Twitch URL");
   }
 
   return {
-    code: match[1],
-    fightId: match[2] ? parseInt(match[2]) : undefined,
+    id: match[1],
+    startSeconds: parseStartSeconds(url.searchParams.get("t")),
   };
 }
 
-/**
- * Detect VOD platform from URL
- */
-export function detectVODPlatform(url: string): "youtube" | "twitch" {
-  if (url.includes("youtube.com") || url.includes("youtu.be")) {
-    return "youtube";
-  } else if (url.includes("twitch.tv")) {
-    return "twitch";
+/** Parse a Warcraft Logs report URL and an optional numeric fight ID. */
+export function parseWCLUrl(value: string): WCLData {
+  const url = parseUrl(value, "Warcraft Logs");
+  const hostname = normalizedHostname(url);
+  const match = url.pathname.match(/^\/reports\/([A-Za-z0-9]+)(?:\/|$)/);
+
+  if (hostname !== "warcraftlogs.com" || !match) {
+    throw new Error("Invalid Warcraft Logs URL");
   }
+
+  const hashParams = new URLSearchParams(url.hash.slice(1));
+  const fight = hashParams.get("fight") || url.searchParams.get("fight");
+
+  return {
+    code: match[1],
+    fightId: fight && /^\d+$/.test(fight) ? Number.parseInt(fight, 10) : undefined,
+  };
+}
+
+/** Detect which supported VOD service owns the URL. */
+export function detectVODPlatform(value: string): "youtube" | "twitch" {
+  const url = parseUrl(value, "VOD");
+  const hostname = normalizedHostname(url);
+
+  if (YOUTUBE_HOSTS.has(hostname)) return "youtube";
+  if (TWITCH_HOSTS.has(hostname)) return "twitch";
 
   throw new Error("Unsupported VOD platform");
 }

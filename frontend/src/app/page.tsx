@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { parseURLs } from "@/lib/api";
 
 export default function Home() {
   const [wclUrl, setWclUrl] = useState("");
@@ -16,30 +17,14 @@ export default function Home() {
     setLoading(true);
 
     try {
-      // Parse URLs via backend API
-      const response = await fetch("http://localhost:3001/api/parse-urls", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          wclUrl,
-          vodUrl,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to parse URLs");
-      }
+      const data = await parseURLs(wclUrl, vodUrl);
 
       // Navigate to timeline view with parsed data
       const params = new URLSearchParams({
         wclCode: data.wcl.code,
         vodPlatform: data.vod.platform,
         vodId: data.vod.id,
-        ...(data.wcl.fight && { fightId: data.wcl.fight.toString() }),
+        ...(data.wcl.fightId !== undefined && { fightId: data.wcl.fightId.toString() }),
         ...(data.vod.startSeconds && { startSeconds: data.vod.startSeconds.toString() }),
       });
 
@@ -56,7 +41,7 @@ export default function Home() {
       <div className="container mx-auto px-6 py-12 max-w-3xl flex flex-col items-center justify-center">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">WoW Logs + VOD Sync</h1>
-          <p className="text-lg text-gray-300">Sync Warcraft Logs events with your YouTube VOD timeline</p>
+          <p className="text-lg text-gray-300">Sync Warcraft Logs events with your YouTube or Twitch VOD</p>
         </div>
 
         <div className="rounded-2xl p-[2.5px] bg-gradient-to-br from-blue-900/80 via-[#232336] to-purple-900/60 shadow-2xl w-full">
@@ -80,18 +65,18 @@ export default function Home() {
 
               <div>
                 <label htmlFor="vodUrl" className="block text-sm font-medium text-gray-200 mb-2">
-                  YouTube VOD URL
+                  VOD URL (YouTube or Twitch)
                 </label>
                 <input
                   id="vodUrl"
                   type="url"
                   value={vodUrl}
                   onChange={(e) => setVodUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholder="https://youtube.com/watch?v=... or https://twitch.tv/videos/..."
                   className="w-full px-3 py-2 border border-[#35354a] bg-[#232336] text-white rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-[#101014] placeholder-gray-400 transition-all duration-150 focus:border-blue-500/80 hover:border-blue-500/60"
                   required
                 />
-                <p className="text-sm text-gray-400 mt-1">Example: https://www.youtube.com/watch?v=dQw4w9WgXcQ</p>
+                <p className="text-sm text-gray-400 mt-1">Paste a YouTube video or Twitch VOD URL.</p>
               </div>
 
               {error && <div className="bg-[#2a1313] border border-red-700 text-red-300 px-4 py-3 rounded-lg shadow">{error}</div>}

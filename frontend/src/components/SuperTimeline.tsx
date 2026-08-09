@@ -49,6 +49,32 @@ const MIN_ZOOM = 0.1; // Min pixels per second
 const MAX_ZOOM = 50; // Max pixels per second
 const EDGE_PADDING_SEC = 60; // Extra seconds padding at edges when max zoomed out
 
+const calculateTimeStep = (currentZoom: number) => {
+  const secondsPerMarker = 100 / currentZoom;
+
+  if (secondsPerMarker <= 10) return 10;
+  if (secondsPerMarker <= 30) return 30;
+  if (secondsPerMarker <= 60) return 60;
+  if (secondsPerMarker <= 120) return 120;
+  if (secondsPerMarker <= 300) return 300;
+  return 600;
+};
+
+function getInitialSyncState(videoStartTime: number, reportStartTime: number, videoDuration: number) {
+  if (videoStartTime && reportStartTime && videoDuration > 0) {
+    const timeDiffSeconds = (videoStartTime - reportStartTime) / 1000;
+    if (Math.abs(timeDiffSeconds) < 24 * 60 * 60) {
+      return { videoOffset: timeDiffSeconds, locked: true, autoSynced: true };
+    }
+  }
+
+  return {
+    videoOffset: videoDuration > 0 ? -videoDuration - 60 : 0,
+    locked: false,
+    autoSynced: false,
+  };
+}
+
 export default function SuperTimeline({
   reportStartTime,
   reportEndTime,
@@ -66,6 +92,9 @@ export default function SuperTimeline({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const iconImagesRef = useRef<Map<string, HTMLImageElement>>(new Map()); // Cache for boss icons
+  const reportDuration = (reportEndTime - reportStartTime) / 1000; // in seconds
+  const videoDurationSec = videoDuration;
+  const initialSync = getInitialSyncState(videoStartTime, reportStartTime, videoDurationSec);
 
   // Timeline state
   const [zoom, setZoom] = useState<number>(1); // pixels per second
@@ -76,57 +105,11 @@ export default function SuperTimeline({
   const [hoveredEvent, setHoveredEvent] = useState<(Event & { x: number; y: number }) | null>(null);
 
   // Sync timeline state
-  const [videoOffsetSec, setVideoOffsetSec] = useState<number>(0); // Video offset in seconds from timeline start
+  const [videoOffsetSec, setVideoOffsetSec] = useState<number>(initialSync.videoOffset); // Video offset in seconds from timeline start
   const [wclOffsetSec, setWclOffsetSec] = useState<number>(0); // WCL offset in seconds from timeline start
-  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [isLocked, setIsLocked] = useState<boolean>(initialSync.locked);
   const [isDraggingSync, setIsDraggingSync] = useState<"video" | "wcl" | null>(null);
-  const [autoSynced, setAutoSynced] = useState<boolean>(false);
-
-  const reportDuration = (reportEndTime - reportStartTime) / 1000; // in seconds
-  const videoDurationSec = videoDuration;
-
-  // Initialize sync offsets and auto-sync
-  useEffect(() => {
-    // Always set WCL to start at 0 by default
-    setWclOffsetSec(0);
-
-    if (videoStartTime && reportStartTime && videoDurationSec > 0) {
-      // Try to auto-align based on timestamps
-      // If video was published before report started, video offset should be negative
-      // videoOffsetSec represents where the video starts on the timeline
-      const timeDiffSeconds = (videoStartTime - reportStartTime) / 1000;
-
-      // Only auto-align if the timestamps are within a reasonable range (same day)
-      const dayInSeconds = 24 * 60 * 60;
-      if (Math.abs(timeDiffSeconds) < dayInSeconds) {
-        setVideoOffsetSec(timeDiffSeconds);
-        setIsLocked(true);
-        setAutoSynced(true);
-
-        // Calculate and set the offset
-        // offset gives us: wclTime = videoTime + offset
-        // videoOffsetSec is where video bar starts, wclOffsetSec is where WCL bar starts
-        const offsetSec = timeDiffSeconds - 0; // videoOffsetSec - wclOffsetSec
-        onOffsetChange(offsetSec);
-      } else {
-        // If not auto-syncing, position video bar below WCL for visibility
-        setVideoOffsetSec(-videoDurationSec - 60); // Place before WCL with a gap
-      }
-    } else if (videoDurationSec > 0) {
-      // No timestamps available, position video bar before WCL
-      setVideoOffsetSec(-videoDurationSec - 60);
-    }
-  }, [videoStartTime, reportStartTime, onOffsetChange, videoDurationSec]);
-
-  // Update offset when sync positions change
-  useEffect(() => {
-    if (isLocked) {
-      // offset gives us: wclTime = videoTime + offset
-      // So: offset = videoOffsetSec - wclOffsetSec
-      const offsetSec = videoOffsetSec - wclOffsetSec;
-      onOffsetChange(offsetSec);
-    }
-  }, [videoOffsetSec, wclOffsetSec, isLocked, onOffsetChange]);
+  const [autoSynced, setAutoSynced] = useState<boolean>(initialSync.autoSynced);
 
   // Load boss icons
   useEffect(() => {
@@ -497,19 +480,6 @@ export default function SuperTimeline({
     isLocked,
   ]);
 
-  // Calculate appropriate time step for markers based on zoom
-  const calculateTimeStep = (currentZoom: number) => {
-    const minPixelsBetweenMarkers = 100;
-    const secondsPerMarker = minPixelsBetweenMarkers / currentZoom;
-
-    if (secondsPerMarker <= 10) return 10;
-    if (secondsPerMarker <= 30) return 30;
-    if (secondsPerMarker <= 60) return 60;
-    if (secondsPerMarker <= 120) return 120;
-    if (secondsPerMarker <= 300) return 300;
-    return 600;
-  };
-
   // Redraw on changes
   useEffect(() => {
     draw();
@@ -618,18 +588,7 @@ export default function SuperTimeline({
 
             const distance = Math.sqrt(Math.pow(x - eventX, 2) + Math.pow(y - (eventY + 10), 2));
             if (distance <= 6) {
-              // Clicked on event
-              // Event timestamp is relative to report start (WCL timeline position)
-              // Pass the WCL time to parent, which will handle conversion to video time
-              // Parent will do: videoTime = wclTime + offset
-              // So we need to pass: wclTime (which the parent calls 'eventTime')
-
-              console.log("Event clicked:", {
-                eventTimeSec,
-                offset,
-                calculation: `Passing ${eventTimeSec} to parent, which will calculate videoTime = ${eventTimeSec} + ${offset} = ${eventTimeSec + offset}`,
-              });
-
+              // The parent converts this report-relative time to video time.
               onTimelineClick(eventTimeSec);
               return;
             }
@@ -656,7 +615,6 @@ export default function SuperTimeline({
       wclOffsetSec,
       reportDuration,
       zoom,
-      offset,
     ]
   );
 

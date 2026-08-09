@@ -87,11 +87,12 @@ const TwitchPlayer = forwardRef<TwitchPlayerRef, TwitchPlayerProps>(({ videoId, 
     const initializePlayer = () => {
       if (window.Twitch && containerRef.current && !player) {
         const newPlayer = new window.Twitch.Player(playerIdRef.current, {
-          video: videoId,
+          video: videoId.startsWith("v") ? videoId : `v${videoId}`,
           width: "100%",
           height: "100%",
           autoplay: false,
           time: `${Math.floor(startSeconds)}s`,
+          parent: [window.location.hostname],
         });
 
         // Wait for player to be ready

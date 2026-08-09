@@ -1,6 +1,6 @@
 // API utility functions for communicating with backend
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+export const API_BASE = "/api";
 
 export interface WCLData {
   code: string;
@@ -66,7 +66,7 @@ export interface VideoMetadata {
 
 // Parse URLs
 export async function parseURLs(wclUrl: string, vodUrl: string): Promise<ParsedURLs> {
-  const response = await fetch(`${API_BASE}/api/parse-urls`, {
+  const response = await fetch(`${API_BASE}/parse-urls`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -84,7 +84,7 @@ export async function parseURLs(wclUrl: string, vodUrl: string): Promise<ParsedU
 
 // Get WCL report summary
 export async function getWCLReport(code: string): Promise<Report> {
-  const response = await fetch(`${API_BASE}/api/wcl/reports/${code}`);
+  const response = await fetch(`${API_BASE}/wcl/reports/${code}`);
 
   if (!response.ok) {
     const error = await response.json();
@@ -102,7 +102,7 @@ export async function getWCLEvents(
   endTime: number,
   eventTypes: string[] = ["Deaths", "Casts"]
 ): Promise<EventsResponse> {
-  const response = await fetch(`${API_BASE}/api/wcl/reports/${code}/events`, {
+  const response = await fetch(`${API_BASE}/wcl/reports/${code}/events`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -125,7 +125,7 @@ export async function getWCLEvents(
 
 // Get video metadata (YouTube or Twitch)
 export async function getVideoMetadata(platform: "youtube" | "twitch", videoId: string): Promise<VideoMetadata> {
-  const response = await fetch(`${API_BASE}/api/video-metadata/${platform}/${videoId}`);
+  const response = await fetch(`${API_BASE}/video-metadata/${platform}/${videoId}`);
 
   if (!response.ok) {
     const error = await response.json();

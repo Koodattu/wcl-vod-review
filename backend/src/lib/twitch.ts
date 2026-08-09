@@ -30,23 +30,16 @@ interface TwitchVideosResponse {
 }
 
 export class TwitchClient {
-  private clientId: string;
-  private clientSecret: string;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
   private baseUrl = "https://api.twitch.tv/helix";
   private authUrl = "https://id.twitch.tv/oauth2/token";
 
   constructor() {
-    const clientId = process.env.TWITCH_CLIENT_ID;
-    const clientSecret = process.env.TWITCH_CLIENT_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error("TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET must be set in environment variables");
-    }
-
-    this.clientId = clientId;
-    this.clientSecret = clientSecret;
+    this.clientId = process.env.TWITCH_CLIENT_ID || "";
+    this.clientSecret = process.env.TWITCH_CLIENT_SECRET || "";
   }
 
   /**
@@ -72,6 +65,10 @@ export class TwitchClient {
    * Authenticate with Twitch API using OAuth Client Credentials flow
    */
   private async authenticate() {
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error("TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET are required to load Twitch video metadata");
+    }
+
     // Check if we have a valid token
     if (this.accessToken && Date.now() < this.tokenExpiry) {
       return this.accessToken;
