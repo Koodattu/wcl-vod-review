@@ -1,6 +1,6 @@
 services:
   mongodb:
-    image: mongo:8.0@sha256:98605bfa1bb2a15dd82109e1d78ad31527a9a744909fab4606076fa71a0ae515
+    image: mongo:7.0.40@sha256:be3d6353f3ea3fd3d22e016d19da20fcd6937eda0739eb6d2aeed335baa60f90
     restart: unless-stopped
     volumes:
       - mongodb_data:/data/db
