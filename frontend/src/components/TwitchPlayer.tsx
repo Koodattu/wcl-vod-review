@@ -1,139 +1,112 @@
 "use client";
 
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useState, useId, forwardRef, useImperativeHandle } from "react";
+import { loadPlayerScript } from "@/lib/playerScript";
 
-// Twitch Player API types
 interface TwitchPlayer {
   seek: (timestamp: number) => void;
   getCurrentTime: () => number;
   pause: () => void;
-  play: () => void;
-  destroy: () => void;
-  addEventListener: (event: string, callback: (data?: unknown) => void) => void;
-  removeEventListener: (event: string, callback: (data?: unknown) => void) => void;
+  addEventListener: (event: string, callback: () => void) => void;
+  removeEventListener?: (event: string, callback: () => void) => void;
 }
 
 declare global {
   interface Window {
-    Twitch: {
-      Player: new (element: string, options: Record<string, unknown>) => TwitchPlayer;
-    };
+    Twitch?: { Player: { new (element: string, options: Record<string, unknown>): TwitchPlayer; READY: string } };
   }
 }
 
 export interface TwitchPlayerProps {
   videoId: string;
   startSeconds?: number;
-  onReady?: (player: TwitchPlayer) => void;
+  onReady?: () => void;
+  onError?: () => void;
   onTimeUpdate?: (currentTime: number) => void;
 }
 
 export interface TwitchPlayerRef {
   seekTo: (seconds: number) => void;
   getCurrentTime: () => number;
-  player: TwitchPlayer | null;
 }
 
-const TwitchPlayer = forwardRef<TwitchPlayerRef, TwitchPlayerProps>(({ videoId, startSeconds = 0, onReady, onTimeUpdate }, ref) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [player, setPlayer] = useState<TwitchPlayer | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const playerIdRef = useRef<string>(`twitch-player-${Math.random().toString(36).substr(2, 9)}`);
+const TwitchPlayer = forwardRef<TwitchPlayerRef, TwitchPlayerProps>(({ videoId, startSeconds = 0, onReady, onError, onTimeUpdate }, ref) => {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<TwitchPlayer | null>(null);
+  const playerId = useId();
+  const callbacks = useRef({ onReady, onError, onTimeUpdate });
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => { callbacks.current = { onReady, onError, onTimeUpdate }; }, [onReady, onError, onTimeUpdate]);
 
   useImperativeHandle(ref, () => ({
-    seekTo: (seconds: number) => {
-      if (player) {
-        player.seek(seconds);
-      }
-    },
-    getCurrentTime: () => {
-      return player ? player.getCurrentTime() : 0;
-    },
-    player,
-  }));
+    seekTo: seconds => instanceRef.current?.seek(Math.max(0, seconds)),
+    getCurrentTime: () => instanceRef.current?.getCurrentTime() ?? 0,
+  }), []);
 
   useEffect(() => {
-    // Set up time update interval
-    if (player && onTimeUpdate) {
-      timeUpdateIntervalRef.current = setInterval(() => {
-        const currentTime = player.getCurrentTime();
-        onTimeUpdate(currentTime);
-      }, 100); // Update every 100ms
-    }
-
+    const host = hostRef.current;
+    if (!host) return;
+    let disposed = false;
+    let failed = false;
+    let player: TwitchPlayer | null = null;
+    let readyEvent = "ready";
+    let interval: ReturnType<typeof setInterval> | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const fail = () => {
+      if (disposed) return;
+      failed = true;
+      instanceRef.current = null;
+      clearTimeout(timeout);
+      clearInterval(interval);
+      setStatus("error");
+      callbacks.current.onError?.();
+    };
+    const ready = () => {
+      if (disposed || failed || !player) return;
+      clearTimeout(timeout);
+      instanceRef.current = player;
+      setStatus("ready");
+      callbacks.current.onReady?.();
+      interval = setInterval(() => callbacks.current.onTimeUpdate?.(player!.getCurrentTime()), 100);
+    };
+    const initialize = async () => {
+      setStatus("loading");
+      try {
+        await loadPlayerScript("https://player.twitch.tv/js/embed/v1.js", () => !!window.Twitch?.Player);
+        if (disposed || !window.Twitch) return;
+        readyEvent = window.Twitch.Player.READY;
+        player = new window.Twitch.Player(playerId, {
+          video: videoId.startsWith("v") ? videoId : "v" + videoId,
+          width: "100%", height: "100%", autoplay: false,
+          time: Math.floor(startSeconds) + "s", parent: [window.location.hostname],
+        });
+        timeout = setTimeout(fail, 15_000);
+        player.addEventListener(readyEvent, ready);
+      } catch { fail(); }
+    };
+    void initialize();
     return () => {
-      if (timeUpdateIntervalRef.current) {
-        clearInterval(timeUpdateIntervalRef.current);
-      }
+      disposed = true;
+      clearTimeout(timeout);
+      clearInterval(interval);
+      if (instanceRef.current) player?.pause();
+      instanceRef.current = null;
+      player?.removeEventListener?.(readyEvent, ready);
+      // Twitch has no documented destroy method; removing the iframe stops playback.
+      host.replaceChildren();
     };
-  }, [player, onTimeUpdate]);
+  }, [videoId, startSeconds, playerId, attempt]);
 
-  useEffect(() => {
-    // Load Twitch Embed API
-    const loadTwitchAPI = () => {
-      if (!document.querySelector('script[src="https://player.twitch.tv/js/embed/v1.js"]')) {
-        const script = document.createElement("script");
-        script.src = "https://player.twitch.tv/js/embed/v1.js";
-        script.async = true;
-        document.body.appendChild(script);
-        script.onload = initializePlayer;
-      } else if (window.Twitch) {
-        initializePlayer();
-      }
-    };
-
-    // Initialize player when API is ready
-    const initializePlayer = () => {
-      if (window.Twitch && containerRef.current && !player) {
-        const newPlayer = new window.Twitch.Player(playerIdRef.current, {
-          video: videoId.startsWith("v") ? videoId : `v${videoId}`,
-          width: "100%",
-          height: "100%",
-          autoplay: false,
-          time: `${Math.floor(startSeconds)}s`,
-          parent: [window.location.hostname],
-        });
-
-        // Wait for player to be ready
-        newPlayer.addEventListener("ready", () => {
-          setIsReady(true);
-          setPlayer(newPlayer);
-          onReady?.(newPlayer);
-        });
-
-        newPlayer.addEventListener("pause", () => {
-          // Handle pause if needed
-        });
-
-        newPlayer.addEventListener("play", () => {
-          // Handle play if needed
-        });
-      }
-    };
-
-    loadTwitchAPI();
-
-    // Cleanup
-    return () => {
-      if (player) {
-        player.destroy();
-      }
-    };
-  }, [videoId, startSeconds, onReady, player]);
-
-  return (
-    <div className="w-full h-full relative">
-      <div id={playerIdRef.current} ref={containerRef} className="w-full h-full absolute top-0 left-0" />
-      {!isReady && (
-        <div className="w-full h-full absolute top-0 left-0 bg-gray-200 flex items-center justify-center rounded-lg">
-          <div className="text-gray-500">Loading Twitch player...</div>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="relative h-full min-h-[300px] w-full min-w-[400px]">
+    <div id={playerId} ref={hostRef} className="absolute inset-0 h-full w-full" />
+    {status !== "ready" && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-900 p-4 text-center text-sm text-gray-200">
+      <p role={status === "error" ? "alert" : "status"}>{status === "error" ? "Could not load the Twitch player. Retry or open the original video." : "Loading Twitch player…"}</p>
+      {status === "error" && <button className="button" onClick={() => setAttempt(value => value + 1)}>Retry player</button>}
+    </div>}
+  </div>;
 });
 
 TwitchPlayer.displayName = "TwitchPlayer";
-
 export default TwitchPlayer;

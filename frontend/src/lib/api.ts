@@ -1,21 +1,8 @@
-// API utility functions for communicating with backend
-
 export const API_BASE = "/api";
 
-export interface WCLData {
-  code: string;
-  fightId?: number;
-}
-
-export interface VODData {
-  platform: "youtube" | "twitch";
-  id: string;
-  startSeconds?: number;
-}
-
 export interface ParsedURLs {
-  wcl: WCLData;
-  vod: VODData;
+  wcl: { code: string; fightId?: number };
+  vod: { platform: "youtube" | "twitch"; id: string; startSeconds?: number };
 }
 
 export interface Fight {
@@ -26,8 +13,7 @@ export interface Fight {
   encounterID?: number;
   difficulty?: number;
   kill?: boolean;
-  fightPercentage?: number;
-  lastPhase?: number;
+  iconUrl?: string | null;
 }
 
 export interface Report {
@@ -35,10 +21,15 @@ export interface Report {
   title: string;
   startTime: number;
   endTime: number;
-  owner: {
-    name: string;
-  };
   fights: Fight[];
+}
+
+export interface ActorInfo {
+  id: number;
+  name: string;
+  type: string;
+  subType?: string | null;
+  icon?: string | null;
 }
 
 export interface Event {
@@ -47,90 +38,59 @@ export interface Event {
   sourceID?: number;
   targetID?: number;
   abilityGameID?: number;
-  // Add more event properties as needed
-}
-
-export interface EventsResponse {
-  events: Event[];
+  ability?: { name: string; guid: number; type: number };
+  abilityInfo?: { gameID: number; name: string; icon?: string | null; type?: number };
+  sourceInfo?: ActorInfo;
+  targetInfo?: ActorInfo;
 }
 
 export interface VideoMetadata {
-  platform: "youtube" | "twitch";
   id: string;
-  publishedAt?: string; // YouTube
-  createdAt?: string; // Twitch
   title: string;
-  description?: string;
-  [key: string]: unknown;
+  duration: number;
+  publishedAt?: string;
+  createdAt?: string;
 }
 
-// Parse URLs
-export async function parseURLs(wclUrl: string, vodUrl: string): Promise<ParsedURLs> {
-  const response = await fetch(`${API_BASE}/parse-urls`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ wclUrl, vodUrl }),
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const timeout = AbortSignal.timeout(45_000);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: options.signal ? AbortSignal.any([options.signal, timeout]) : timeout,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(typeof data?.error === "string" ? data.error : "The service is unavailable. Please retry.");
+    }
+    if (data === null) throw new Error("The service returned an unreadable response. Please retry.");
+    return data as T;
+  } catch (error) {
+    if (timeout.aborted) throw new Error("The request took too long. Please retry.");
+    if (error instanceof TypeError) throw new Error("Could not connect. Check your connection and retry.");
+    throw error;
+  }
+}
+
+export function parseURLs(wclUrl: string, vodUrl: string): Promise<ParsedURLs> {
+  return request("/parse-urls", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wclUrl: wclUrl.trim(), vodUrl: vodUrl.trim() }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to parse URLs");
-  }
-
-  return response.json();
 }
 
-// Get WCL report summary
-export async function getWCLReport(code: string): Promise<Report> {
-  const response = await fetch(`${API_BASE}/wcl/reports/${code}`);
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to fetch report");
-  }
-
-  return response.json();
+export function getWCLReport(code: string, signal?: AbortSignal): Promise<Report> {
+  return request(`/wcl/reports/${encodeURIComponent(code)}`, { signal });
 }
 
-// Get events for a fight
-export async function getWCLEvents(
-  code: string,
-  fightId: number | undefined,
-  startTime: number,
-  endTime: number,
-  eventTypes: string[] = ["Deaths", "Casts"]
-): Promise<EventsResponse> {
-  const response = await fetch(`${API_BASE}/wcl/reports/${code}/events`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      fightId,
-      startTime,
-      endTime,
-      eventTypes,
-    }),
+export function getWCLEvents(code: string, fightId: number | undefined, startTime: number, endTime: number,
+  eventTypes: string[] = ["Deaths", "Casts"], signal?: AbortSignal): Promise<{ events: Event[] }> {
+  return request(`/wcl/reports/${encodeURIComponent(code)}/events`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, signal,
+    body: JSON.stringify({ fightId, startTime, endTime, eventTypes }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to fetch events");
-  }
-
-  return response.json();
 }
 
-// Get video metadata (YouTube or Twitch)
-export async function getVideoMetadata(platform: "youtube" | "twitch", videoId: string): Promise<VideoMetadata> {
-  const response = await fetch(`${API_BASE}/video-metadata/${platform}/${videoId}`);
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to fetch video metadata");
-  }
-
-  return response.json();
+export function getVideoMetadata(platform: "youtube" | "twitch", videoId: string, signal?: AbortSignal): Promise<VideoMetadata> {
+  return request(`/video-metadata/${platform}/${encodeURIComponent(videoId)}`, { signal });
 }

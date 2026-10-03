@@ -1,44 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-interface Fight {
-  id: number;
-  name: string;
-  startTime: number;
-  endTime: number;
-  kill?: boolean;
-  iconUrl?: string | null;
-}
-
-interface ActorInfo {
-  id: number;
-  name: string;
-  type: string;
-  subType?: string | null;
-  icon?: string | null;
-}
-
-interface Event {
-  timestamp: number;
-  type: "Deaths" | "Casts";
-  sourceID?: number;
-  targetID?: number;
-  abilityGameID?: number;
-  ability?: {
-    name: string;
-    guid: number;
-    type: number;
-  };
-  abilityInfo?: {
-    gameID: number;
-    name: string;
-    icon?: string | null;
-    type?: number;
-  };
-  sourceInfo?: ActorInfo;
-  targetInfo?: ActorInfo;
-}
+import type { Fight, Event } from "@/lib/api";
 
 interface EventTrack {
   id: string;
@@ -79,6 +42,8 @@ interface SuperTimelineProps {
   onOffsetReset?: () => void;
   initialOffset?: number | null;
   autoSyncLatencySeconds?: number;
+  eventsStatus?: string;
+  canAlign?: boolean;
 }
 
 const LABEL_WIDTH = 210;
@@ -87,7 +52,7 @@ const FIGHT_ROW_HEIGHT = 40;
 const TRACK_ROW_HEIGHT = 38;
 const PADDING_TOP = 60;
 const PADDING_BOTTOM = 16;
-const MIN_ZOOM = 0.1;
+const MIN_ZOOM = 0.001;
 const MAX_ZOOM = 50;
 const EDGE_PADDING_SEC = 60;
 const EVENT_HIT_RADIUS = 12;
@@ -178,7 +143,7 @@ function getInitialSyncState(
   }
 
   return {
-    videoOffset: videoDuration > 0 ? -videoDuration - 60 : 0,
+    videoOffset: 0,
     locked: false,
     autoSynced: false,
   };
@@ -201,6 +166,8 @@ export default function SuperTimeline({
   onOffsetReset,
   initialOffset,
   autoSyncLatencySeconds = 0,
+  eventsStatus = "Select a fight to load events",
+  canAlign = true,
 }: SuperTimelineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -330,7 +297,7 @@ export default function SuperTimeline({
     const initialZoom = Math.max(MIN_ZOOM, Math.min(timelineWidth / totalDurationWithPadding, MAX_ZOOM));
     setZoom(initialZoom);
     setPanOffset(-EDGE_PADDING_SEC * initialZoom);
-  }, [reportDuration]);
+  }, [reportDuration, canvasWidth]);
 
   useEffect(() => {
     if (!selectedFightId || !containerRef.current) return;
@@ -344,7 +311,7 @@ export default function SuperTimeline({
     const newZoom = Math.max(MIN_ZOOM, Math.min(timelineWidth / fightDuration, MAX_ZOOM));
     setZoom(newZoom);
     setPanOffset(fightStart * newZoom - 10);
-  }, [selectedFightId, fights, wclOffsetSec]);
+  }, [selectedFightId, fights, wclOffsetSec, canvasWidth]);
 
   useEffect(() => {
     if (!isDraggingSync) onOffsetChange(videoOffsetSec - wclOffsetSec);
@@ -412,7 +379,7 @@ export default function SuperTimeline({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const width = container.clientWidth;
+    const width = canvasWidth;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
     canvas.height = canvasHeight * dpr;
@@ -632,7 +599,7 @@ export default function SuperTimeline({
     if (tracks.length === 0) {
       ctx.fillStyle = "#9ca3af";
       ctx.font = "11px sans-serif";
-      ctx.fillText(selectedFightId ? "Loading tracked events…" : "Select a fight to load events", 12, tracksTop + TRACK_ROW_HEIGHT / 2);
+      ctx.fillText(eventsStatus, 12, tracksTop + TRACK_ROW_HEIGHT / 2, LABEL_WIDTH - 24);
     }
 
     tracks.forEach((track, trackIndex) => {
@@ -697,6 +664,8 @@ export default function SuperTimeline({
     currentVideoTime,
     offset,
     imageVersion,
+    eventsStatus,
+    canvasWidth,
   ]);
 
   useEffect(() => {
@@ -926,6 +895,18 @@ export default function SuperTimeline({
   }, [autoOffset, onOffsetChange, onOffsetReset]);
 
   const selectedFight = fights.find((fight) => fight.id === selectedFightId);
+  const fitRange = (start: number, end: number) => {
+    const width = Math.max(1, canvasWidth - LABEL_WIDTH - 20);
+    const nextZoom = Math.max(MIN_ZOOM, Math.min(width / Math.max(1, end - start), MAX_ZOOM));
+    setZoom(nextZoom);
+    setPanOffset(start * nextZoom - 10);
+  };
+  const zoomBy = (factor: number) => {
+    const center = LABEL_WIDTH + (canvasWidth - LABEL_WIDTH) / 2;
+    const nextZoom = Math.max(MIN_ZOOM, Math.min(zoom * factor, MAX_ZOOM));
+    setPanOffset(xToTime(center) * nextZoom - (center - LABEL_WIDTH));
+    setZoom(nextZoom);
+  };
   const hoveredEventFightTime = hoveredEvent && selectedFight ? (hoveredEvent.event.timestamp - selectedFight.startTime) / 1000 : null;
   const tooltipLeft = hoveredEvent ? Math.max(LABEL_WIDTH + 8, Math.min(hoveredEvent.x + 12, Math.max(LABEL_WIDTH + 8, canvasWidth - 260))) : 0;
 
@@ -933,21 +914,21 @@ export default function SuperTimeline({
     <div className="w-full antialiased">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h3 className="mb-1 font-semibold text-gray-100">Timeline</h3>
+          <h2 className="mb-1 text-lg font-semibold text-gray-100">Timeline & sync</h2>
           <p className="max-w-2xl text-pretty text-xs text-gray-400">
-            Scroll to zoom, drag to pan, and click a cast or death to seek the VOD. Each fight gets one row per ability and one combined death row.
+            Scroll to zoom, drag to pan, or use the controls below. Select events here or in the event list to seek the video.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
           <div className="mr-1 text-right text-gray-400">
             <div className="font-medium tabular-nums text-gray-200">Offset {formatPreciseTime(currentOffset)}</div>
-            <div>{autoSyncLatencySeconds > 0 ? `Twitch delay compensation ${autoSyncLatencySeconds.toFixed(1)}s` : autoSynced ? "Timestamp auto-sync" : "Saved calibration"}</div>
+            <div>{autoSynced ? "Timestamp estimate · check alignment" : initialOffset != null ? "Manual calibration" : "Align the video with the fight"}</div>
           </div>
           <button
             type="button"
             onClick={() => adjustOffset(0.5)}
-            className="h-10 rounded-md border border-[#45455e] bg-[#202031] px-3 text-gray-200 transition-[color,background-color,border-color,transform] active:scale-[0.96] hover:bg-[#29293d]"
+            className="button"
             title="Move WCL events 0.5 seconds earlier in the video"
           >
             Earlier 0.5s
@@ -955,7 +936,7 @@ export default function SuperTimeline({
           <button
             type="button"
             onClick={() => adjustOffset(-0.5)}
-            className="h-10 rounded-md border border-[#45455e] bg-[#202031] px-3 text-gray-200 transition-[color,background-color,border-color,transform] active:scale-[0.96] hover:bg-[#29293d]"
+            className="button"
             title="Move WCL events 0.5 seconds later in the video"
           >
             Later 0.5s
@@ -964,7 +945,7 @@ export default function SuperTimeline({
             type="button"
             onClick={resetAutoSync}
             disabled={autoOffset === null}
-            className="h-10 rounded-md border border-[#45455e] bg-[#202031] px-3 text-gray-200 transition-[color,background-color,border-color,transform] active:scale-[0.96] enabled:hover:bg-[#29293d] disabled:cursor-not-allowed disabled:opacity-40"
+            className="button"
           >
             Reset auto
           </button>
@@ -974,7 +955,8 @@ export default function SuperTimeline({
               setIsLocked((locked) => !locked);
               if (isLocked) setAutoSynced(false);
             }}
-            className={`h-10 rounded-md border px-3 transition-[color,background-color,border-color,transform] active:scale-[0.96] ${
+            aria-pressed={isLocked}
+            className={`button ${
               isLocked ? "border-green-500 bg-green-700 text-white hover:bg-green-800" : "border-[#45455e] bg-[#202031] text-gray-200 hover:bg-[#29293d]"
             }`}
             title={isLocked ? "Unlock the Video and WCL bars for dragging" : "Lock the Video and WCL bars"}
@@ -984,12 +966,31 @@ export default function SuperTimeline({
         </div>
       </div>
 
+      <div className="mb-4 space-y-3 border-t border-[#35354a] pt-4">
+        <p className="text-sm text-gray-300">Pause the video at the selected fight’s start, then align it. Fine-tune with Earlier / Later.</p>
+        <div className="flex flex-wrap gap-2">
+          <button className="button" disabled={!selectedFight || !canAlign} onClick={() => {
+            if (selectedFight) adjustOffset(selectedFight.startTime / 1000 - currentVideoTime - currentOffset);
+          }}>Align fight start to current video time</button>
+          <button className="button" onClick={() => fitRange(-EDGE_PADDING_SEC, reportDuration + EDGE_PADDING_SEC)}>Fit report</button>
+          <button className="button" disabled={!selectedFight} onClick={() => {
+            if (selectedFight) fitRange(selectedFight.startTime / 1000 + wclOffsetSec, selectedFight.endTime / 1000 + wclOffsetSec);
+          }}>Fit fight</button>
+          <button className="button" aria-label="Zoom in" onClick={() => zoomBy(1.5)}>+</button>
+          <button className="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.5)}>−</button>
+          <button className="button" aria-label="Pan earlier" onClick={() => setPanOffset(value => value - (canvasWidth - LABEL_WIDTH) / 2)}>←</button>
+          <button className="button" aria-label="Pan later" onClick={() => setPanOffset(value => value + (canvasWidth - LABEL_WIDTH) / 2)}>→</button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
       <div
         ref={containerRef}
-        className="relative overflow-hidden rounded-lg border border-[#35354a] bg-[#181824]"
+        className="relative min-w-[640px] overflow-hidden rounded-lg border border-[#35354a] bg-[#181824]"
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
       >
         <canvas
+          role="img"
+          aria-label="Fight timeline with NPC casts and player deaths. Use the fight selector, event list, and timeline controls for keyboard access."
           ref={canvasRef}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -1032,6 +1033,7 @@ export default function SuperTimeline({
             </div>
           </div>
         )}
+      </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-400">

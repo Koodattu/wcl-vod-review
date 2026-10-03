@@ -1,0 +1,44 @@
+import { test, expect } from "@playwright/test";
+import { fixturePlayer } from "./fixtures";
+
+test("links, events, calibration, notes and saved reviews work through the complete local stack", async ({ page, request }) => {
+  test.skip(!process.env.MONGODB_TEST_URI, "Set the guarded disposable MongoDB URI to run the full stack");
+  // Prove the Next proxy targets our fixture API before making any report requests.
+  const marker = await request.get("/api/__fixture");
+  expect((await marker.json()).fixture).toBe("wcl-synthetic-local");
+  const errors: string[] = [];
+  const failedRequests: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("response", response => { if (response.status() >= 400) failedRequests.push(response.url()); });
+  await fixturePlayer(page);
+  await page.goto("/");
+  await page.getByLabel("Warcraft Logs report URL").fill("https://www.warcraftlogs.com/reports/SyntheticReport1#fight=1");
+  await page.getByLabel("YouTube video or Twitch VOD URL").fill("https://youtu.be/localVideo1?t=40");
+  await page.getByRole("button", { name: "Create timeline" }).click();
+  await expect(page.getByRole("heading", { name: /Saturday progression/ })).toBeVisible();
+  await expect(page.getByLabel("Fight", { exact: true })).toHaveValue("1");
+  await page.getByRole("button", { name: "Align fight start to current video time" }).click();
+  await expect(page.getByText("Offset 0:20.0", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Moonleaf/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Video moved to 1:40." })).toBeVisible();
+  await page.getByRole("button", { name: "Add note at current time" }).click();
+  await page.getByLabel("Review note", { exact: true }).fill("Use a defensive before this death.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  const before = await request.get("/api/__fixture").then(response => response.json());
+  await page.reload();
+  await expect(page.getByRole("button", { name: /Moonleaf/ })).toBeVisible();
+  await expect(page.getByText("Offset 0:20.0", { exact: true })).toBeVisible();
+  await expect(page.getByText("Use a defensive before this death.", { exact: true })).toBeVisible();
+  const after = await request.get("/api/__fixture").then(response => response.json());
+  expect(after.providerCalls).toEqual(before.providerCalls);
+  await page.getByLabel("Fight", { exact: true }).selectOption("2");
+  await expect(page.getByText("No tracked events in this fight.")).toBeVisible();
+  await page.getByRole("link", { name: "← New review" }).click();
+  await expect(page.getByRole("button", { name: "Create timeline" })).toBeVisible();
+  await page.getByRole("region", { name: "Saved reviews" }).getByRole("link", { name: /Saturday progression/ }).click();
+  await expect(page.getByLabel("Fight", { exact: true })).toHaveValue("1");
+  await expect(page.getByText("Offset 0:20.0", { exact: true })).toBeVisible();
+  await expect(page.getByText("Use a defensive before this death.", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+  expect(failedRequests).toEqual([]);
+});

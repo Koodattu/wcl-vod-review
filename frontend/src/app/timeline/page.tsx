@@ -1,349 +1,281 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SuperTimeline from "@/components/SuperTimeline";
-import { API_BASE } from "@/lib/api";
+import EventList, { formatTime } from "@/components/EventList";
+import ReviewNotebook from "@/components/ReviewNotebook";
+import { isReviewIdentity, isReviewTime, type ReviewMoment, type ReviewSnapshot } from "@/lib/reviews";
+import { getWCLReport, getWCLEvents, getVideoMetadata, type Report, type Event, type VideoMetadata } from "@/lib/api";
 
-interface Fight {
-  id: number;
-  name: string;
-  startTime: number;
-  endTime: number;
-  boss?: number;
-  difficulty?: number;
-  kill?: boolean;
-  iconUrl?: string | null;
-}
+const EMPTY_EVENTS: Event[] = [];
 
-interface Event {
-  timestamp: number;
-  type: "Deaths" | "Casts";
-  sourceID?: number;
-  targetID?: number;
-  abilityGameID?: number;
-  ability?: {
-    name: string;
-    guid: number;
-    type: number;
-  };
-  abilityInfo?: {
-    gameID: number;
-    name: string;
-    icon?: string | null;
-    type?: number;
-  };
-  sourceInfo?: ActorInfo;
-  targetInfo?: ActorInfo;
-  data?: unknown;
-}
-
-interface ActorInfo {
-  id: number;
-  name: string;
-  type: string;
-  subType?: string | null;
-  icon?: string | null;
-}
-
-interface ReportData {
-  code: string;
-  title: string;
-  startTime: number;
-  endTime: number;
-  totalDuration: number;
-  fights: Fight[];
-}
-
-interface VideoMetadata {
-  id: string;
-  title: string;
-  duration: number; // in seconds
-  publishedAt?: string;
-  createdAt?: string;
+function LoadingReview() {
+  return <main className="page-shell"><Link href="/" className="text-link">New review</Link><p role="status" className="py-12 text-gray-300">Loading report data...</p></main>;
 }
 
 export default function TimelinePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-[#101014] flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-300">Loading timeline...</p>
-          </div>
-        </div>
-      }
-    >
-      <TimelineContent />
-    </Suspense>
-  );
+  return <Suspense fallback={<LoadingReview />}><TimelineContent /></Suspense>;
 }
 
 function TimelineContent() {
-  const searchParams = useSearchParams();
-  const wclCode = searchParams.get("wclCode");
-  const vodPlatform = searchParams.get("vodPlatform");
-  const vodId = searchParams.get("vodId");
-  const fightIdParam = searchParams.get("fightId");
-  const startSecondsParam = searchParams.get("startSeconds");
+  const params = useSearchParams();
+  const wclCode = params.get("wclCode");
+  const platform = params.get("vodPlatform");
+  const vodId = params.get("vodId");
+  const fightId = Number(params.get("fightId"));
+  const start = Number(params.get("startSeconds"));
+  const rawOffset = params.get("syncOffset");
+  const sharedOffset = rawOffset?.trim() && isReviewTime(Number(rawOffset)) ? Number(rawOffset) : null;
+  if (!wclCode || (platform !== "youtube" && platform !== "twitch") || !vodId || !isReviewIdentity(wclCode, platform, vodId)) {
+    return <main className="page-shell space-y-4">
+      <h1 className="text-2xl font-semibold">This review link is incomplete</h1>
+      <p className="text-gray-300">Start a new review with a Warcraft Logs report and a YouTube or Twitch video.</p>
+      <Link href="/" className="button button-primary">New review</Link>
+    </main>;
+  }
+  return <TimelineReview key={[wclCode, platform, vodId, fightId, start, sharedOffset].join(":")}
+    wclCode={wclCode} platform={platform} vodId={vodId}
+    initialFightId={Number.isSafeInteger(fightId) && fightId > 0 ? fightId : null}
+    startSeconds={isReviewTime(start) && start >= 0 ? start : 0} sharedOffset={sharedOffset} />;
+}
 
-  const [report, setReport] = useState<ReportData | null>(null);
-  const [selectedFight, setSelectedFight] = useState<Fight | null>(null);
-  const [fightEvents, setFightEvents] = useState<Map<number, Event[]>>(new Map()); // Store events per fight
+function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds, sharedOffset }: {
+  wclCode: string; platform: "youtube" | "twitch"; vodId: string;
+  initialFightId: number | null; startSeconds: number; sharedOffset: number | null;
+}) {
+  const [report, setReport] = useState<Report | null>(null);
+  const [reportError, setReportError] = useState("");
+  const [reportAttempt, setReportAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [offset, setOffset] = useState<number>(0);
-  const [currentVideoTime, setCurrentVideoTime] = useState<number>(0);
+  const [selectedFightId, setSelectedFightId] = useState<number | null>(initialFightId);
+  const selectedFight = report?.fights.find(fight => fight.id === selectedFightId) ?? null;
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
-
+  const [metadataError, setMetadataError] = useState("");
+  const [metadataAttempt, setMetadataAttempt] = useState(0);
+  const [metadataLoading, setMetadataLoading] = useState(true);
+  const [eventResult, setEventResult] = useState<{ fightId: number; events: Event[]; error?: string } | null>(null);
+  const eventCache = useRef(new Map<number, Event[]>());
+  const [eventAttempt, setEventAttempt] = useState(0);
+  const [offset, setOffset] = useState(sharedOffset ?? 0);
+  const [usingSharedOffset, setUsingSharedOffset] = useState(sharedOffset !== null);
+  const [syncRevision, setSyncRevision] = useState(0);
+  const [hasNoteDraft, setHasNoteDraft] = useState(false);
+  const [currentVideoTime, setCurrentVideoTime] = useState(startSeconds);
+  const [seekMessage, setSeekMessage] = useState("");
+  const [playerReady, setPlayerReady] = useState(false);
+  const markPlayerReady = useCallback(() => setPlayerReady(true), []);
+  const markPlayerUnavailable = useCallback(() => setPlayerReady(false), []);
   const playerRef = useRef<VideoPlayerRef>(null);
-  const syncStorageKey = wclCode && vodPlatform && vodId ? `wcl-vod-review:sync:${wclCode}:${vodPlatform}:${vodId}` : null;
-  const [savedOffset, setSavedOffset] = useState<number | null>(() => {
-    if (typeof window === "undefined" || !syncStorageKey) return null;
-    const storedValue = window.localStorage.getItem(syncStorageKey);
-    if (storedValue === null) return null;
-    const storedOffset = Number(storedValue);
-    return Number.isFinite(storedOffset) ? storedOffset : null;
+  const syncStorageKey = "wcl-vod-review:sync:" + wclCode + ":" + platform + ":" + vodId;
+  const [savedSync, setSavedSync] = useState(() => {
+    try {
+      const value = typeof window === "undefined" ? null : window.localStorage.getItem(syncStorageKey);
+      return { offset: sharedOffset ?? (value !== null && isReviewTime(Number(value)) ? Number(value) : null), available: true };
+    } catch {
+      return { offset: sharedOffset, available: false };
+    }
   });
 
-  // Load report data
   useEffect(() => {
-    if (!wclCode) return;
-
-    const loadReport = async () => {
+    const controller = new AbortController();
+    const load = async () => {
+      setLoading(true);
+      setReportError("");
       try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE}/wcl/reports/${wclCode}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to load report");
-        }
-
+        const data = await getWCLReport(wclCode, controller.signal);
+        if (controller.signal.aborted) return;
         setReport(data);
-
-        // Set initial fight selection only if fightId is provided in URL
-        if (fightIdParam) {
-          const initialFightId = parseInt(fightIdParam);
-          const initialFight = data.fights.find((f: Fight) => f.id === initialFightId);
-          setSelectedFight(initialFight || null);
-        } else {
-          // Don't select any fight by default - let user explore the timeline
-          setSelectedFight(null);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load report");
+        setSelectedFightId(current => data.fights.some(fight => fight.id === current) ? current : data.fights[0]?.id ?? null);
+      } catch (error) {
+        if (!controller.signal.aborted) setReportError(error instanceof Error ? error.message : "Could not load the report.");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
+    void load();
+    return () => controller.abort();
+  }, [wclCode, reportAttempt]);
 
-    loadReport();
-  }, [wclCode, fightIdParam]);
-
-  // Load video metadata
   useEffect(() => {
-    if (!vodPlatform || !vodId) return;
-
-    const loadVideoMetadata = async () => {
+    const controller = new AbortController();
+    const load = async () => {
+      setMetadataLoading(true);
+      setMetadataError("");
       try {
-        const response = await fetch(`${API_BASE}/video-metadata/${vodPlatform}/${vodId}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to load video metadata");
-        }
-
-        setVideoMetadata(data);
-      } catch (err) {
-        console.error("Failed to load video metadata:", err);
-        // Don't set error state, just log it
+        const data = await getVideoMetadata(platform, vodId, controller.signal);
+        if (!controller.signal.aborted) setVideoMetadata(data);
+      } catch (error) {
+        if (!controller.signal.aborted) setMetadataError(error instanceof Error ? error.message : "Could not load video details.");
+      } finally {
+        if (!controller.signal.aborted) setMetadataLoading(false);
       }
     };
+    void load();
+    return () => controller.abort();
+  }, [platform, vodId, metadataAttempt]);
 
-    loadVideoMetadata();
-  }, [vodPlatform, vodId]);
-
-  // Load events for selected fight
   useEffect(() => {
-    if (!wclCode || !selectedFight) return;
+    if (!selectedFight) return;
+    const controller = new AbortController();
+    const load = async () => {
+      setEventResult(null);
+      const cached = eventCache.current.get(selectedFight.id);
+      if (cached) {
+        setEventResult({ fightId: selectedFight.id, events: cached });
+        return;
+      }
+      try {
+        const data = await getWCLEvents(wclCode, selectedFight.id, selectedFight.startTime, selectedFight.endTime, undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        eventCache.current.set(selectedFight.id, data.events);
+        setEventResult({ fightId: selectedFight.id, events: data.events });
+      } catch (error) {
+        if (!controller.signal.aborted) setEventResult({ fightId: selectedFight.id, events: [], error: error instanceof Error ? error.message : "Could not load events." });
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [wclCode, selectedFight, eventAttempt]);
 
-    // Check if we already have events for this fight
-    if (fightEvents.has(selectedFight.id)) {
+  const handleSeek = useCallback((reportSeconds: number) => {
+    if (!playerReady) {
+      setSeekMessage("The video is still loading. Try again when the player is ready.");
       return;
     }
+    const videoTime = reportSeconds - offset;
+    if (videoTime < 0 || (videoMetadata && videoTime > videoMetadata.duration)) {
+      setSeekMessage("This event falls outside the video. Adjust the sync, then try again.");
+      return;
+    }
+    playerRef.current?.seekTo(videoTime);
+    setCurrentVideoTime(videoTime);
+    setSeekMessage("Video moved to " + formatTime(videoTime) + ".");
+  }, [offset, videoMetadata, playerReady]);
 
-    const loadEvents = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/wcl/reports/${wclCode}/events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fightId: selectedFight.id,
-            startTime: selectedFight.startTime,
-            endTime: selectedFight.endTime,
-            eventTypes: ["Deaths", "Casts"],
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to load events");
-        }
-
-        // Store events for this fight
-        setFightEvents((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(selectedFight.id, data.events || []);
-          return newMap;
-        });
-      } catch (err) {
-        console.error("Failed to load events:", err);
-      }
-    };
-
-    loadEvents();
-  }, [wclCode, selectedFight, fightEvents]);
-
-  const handleFightSelect = useCallback(
-    (fightId: number) => {
-      const fight = report?.fights.find((f) => f.id === fightId);
-      if (fight) {
-        setSelectedFight(fight);
-      }
-    },
-    [report]
-  );
-
-  const handleTimelineClick = useCallback(
-    (eventTime: number) => {
-      if (playerRef.current) {
-        // eventTime is the WCL time (relative to report start)
-        // Formula: wclTime = videoTime + offset
-        // So: videoTime = wclTime - offset
-        const videoTime = eventTime - offset;
-        playerRef.current.seekTo(videoTime);
-      }
-    },
-    [offset]
-  );
-
-  const handleOffsetChange = useCallback((newOffset: number) => {
-    setOffset(newOffset);
-  }, []);
-
-  const handleOffsetCommit = useCallback(
-    (newOffset: number) => {
-      if (!syncStorageKey) return;
-      window.localStorage.setItem(syncStorageKey, String(newOffset));
-      setSavedOffset(newOffset);
-    },
-    [syncStorageKey]
-  );
-
-  const handleOffsetReset = useCallback(() => {
-    if (!syncStorageKey) return;
-    window.localStorage.removeItem(syncStorageKey);
-    setSavedOffset(null);
+  const commitOffset = useCallback((value: number) => {
+    let available = true;
+    try { window.localStorage.setItem(syncStorageKey, String(value)); } catch { available = false; }
+    setSavedSync({ offset: value, available });
+    setUsingSharedOffset(false);
+    setSeekMessage("");
   }, [syncStorageKey]);
 
-  const getCurrentFightEvents = useCallback(() => {
-    if (!selectedFight) return [];
-    return fightEvents.get(selectedFight.id) || [];
-  }, [selectedFight, fightEvents]);
+  const resetOffset = useCallback(() => {
+    let available = true;
+    try { window.localStorage.removeItem(syncStorageKey); } catch { available = false; }
+    setSavedSync({ offset: null, available });
+    setUsingSharedOffset(false);
+    setSeekMessage("");
+  }, [syncStorageKey]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-300">Loading report data...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <LoadingReview />;
+  if (reportError || !report) return <main className="page-shell space-y-5">
+    <Link href="/" className="text-link">New review</Link>
+    <h1 className="text-2xl font-semibold">Could not load this report</h1>
+    <p role="alert" className="text-red-300">{reportError || "The report is unavailable."}</p>
+    <button className="button button-primary" onClick={() => setReportAttempt(value => value + 1)}>Retry report</button>
+  </main>;
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
-        <div className="bg-[#2a1313] border border-red-700 text-red-300 px-6 py-4 rounded-lg shadow">
-          <h3 className="font-semibold">Error</h3>
-          <p>{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!report || !vodId || !vodPlatform) {
-    return (
-      <div className="min-h-screen bg-[#101014] flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Missing Data</h2>
-          <p className="text-gray-300">Required parameters are missing or invalid.</p>
-        </div>
-      </div>
-    );
-  }
+  const eventsReady = eventResult?.fightId === selectedFightId;
+  const events = eventsReady ? eventResult.events : EMPTY_EVENTS;
+  const eventError = eventsReady ? eventResult.error : "";
+  const eventsStatus = !selectedFight ? "Select a fight to review" : !eventsReady ? "Loading fight events…" : eventError ? "Events unavailable" : events.length ? "" : "No tracked events";
+  const videoStart = platform === "twitch" ? Date.parse(videoMetadata?.createdAt || "") : 0;
+  const captureReview = (): ReviewSnapshot => ({
+    wclCode, platform, vodId, title: report.title,
+    fightId: selectedFightId, fightName: selectedFight ? `Fight ${selectedFight.id} · ${selectedFight.name}`.slice(0, 500) : null,
+    startSeconds: playerRef.current?.getCurrentTime() ?? currentVideoTime, syncOffset: offset,
+  });
+  const openMoment = (moment: ReviewMoment) => {
+    if (videoMetadata && moment.startSeconds > videoMetadata.duration) {
+      setSeekMessage("This note falls outside the video. Check the original recording.");
+      return;
+    }
+    setSelectedFightId(report.fights.some(fight => fight.id === moment.fightId) ? moment.fightId : null);
+    setSavedSync(current => ({ ...current, offset: moment.syncOffset }));
+    setOffset(moment.syncOffset);
+    setUsingSharedOffset(true);
+    setSyncRevision(value => value + 1);
+    playerRef.current?.seekTo(moment.startSeconds);
+    setCurrentVideoTime(moment.startSeconds);
+    setSeekMessage("Video moved to " + formatTime(moment.startSeconds) + ". Note calibration restored.");
+  };
 
   return (
-    <div className="min-h-screen bg-[#101014] flex justify-center">
-      <div className="w-[90vw] px-6 py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">{report.title}</h1>
-          <p className="text-gray-300">
-            Report: {wclCode}
-            {selectedFight && (
-              <>
-                {" "}
-                | Fight: {selectedFight.name} | Duration: {Math.round((selectedFight.endTime - selectedFight.startTime) / 60000)}m{" "}
-                {Math.round(((selectedFight.endTime - selectedFight.startTime) % 60000) / 1000)}s
-              </>
-            )}
-          </p>
-        </div>
+    <main className="page-shell space-y-6">
+      <header className="space-y-3">
+        <Link href="/" className="text-link" onNavigate={event => {
+          if (hasNoteDraft && !window.confirm("Leave this review? Your unsaved note will be lost.")) event.preventDefault();
+        }}>← New review</Link>
+        <h1 className="break-words text-2xl font-semibold sm:text-3xl">{report.title}</h1>
+        <p className="text-sm text-gray-400">Report {wclCode} · {report.fights.length} boss fights</p>
+      </header>
 
-        {/* Video Player (responsive 16:9, no extra space) */}
-        <div className="mb-8">
-          <div className="w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: "16 / 9" }}>
-            <VideoPlayer
-              ref={playerRef}
-              platform={vodPlatform as "youtube" | "twitch"}
-              videoId={vodId}
-              startSeconds={startSecondsParam ? parseInt(startSecondsParam) : 0}
-              onTimeUpdate={setCurrentVideoTime}
-            />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
+      <section aria-label="Video" className="min-w-0 xl:sticky xl:top-4">
+        <div className={"aspect-video w-full rounded-lg bg-black " + (platform === "twitch" ? "min-h-[300px] overflow-x-auto" : "min-h-[200px] overflow-hidden")}>
+          <VideoPlayer ref={playerRef} platform={platform} videoId={vodId} startSeconds={startSeconds} onTimeUpdate={setCurrentVideoTime} onReady={markPlayerReady} onError={markPlayerUnavailable} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-300">
+          <p className="min-w-0 break-words">{videoMetadata?.title || (platform === "youtube" ? "YouTube video" : "Twitch VOD")}</p>
+          <a className="text-link" href={platform === "youtube" ? "https://www.youtube.com/watch?v=" + vodId : "https://www.twitch.tv/videos/" + vodId} target="_blank" rel="noreferrer">Open original video ↗</a>
+        </div>
+        {metadataLoading && <p role="status" className="mt-2 text-sm text-gray-400">Loading video details…</p>}
+        {metadataError && <div className="notice mt-3">
+          <p role="alert">{metadataError} You can still review events and align the video manually.</p>
+          <button className="button mt-3" onClick={() => setMetadataAttempt(value => value + 1)}>Retry video details</button>
+        </div>}
+        <ReviewNotebook identity={{ wclCode, platform, vodId }} fights={report.fights} captureReview={captureReview} playerReady={playerReady}
+          onOpenMoment={openMoment} onDraftChange={setHasNoteDraft} />
+      </section>
+
+      <div className="min-w-0 space-y-5">
+      {!report.fights.length ? <section className="notice">
+        <h2 className="font-semibold">No boss fights in this report</h2>
+        <p className="mt-2 text-gray-300">Choose a report with a recorded boss encounter to review its events.</p>
+      </section> : <>
+        <section aria-label="Fight selection" className="flex flex-wrap items-end gap-3 border-y border-[#35354a] py-5">
+          <div className="min-w-0 basis-64 flex-1 space-y-2 text-sm font-medium">
+            <label htmlFor="fight">Fight</label>
+            <select id="fight" className="field" value={selectedFightId ?? ""} onChange={event => { setSelectedFightId(Number(event.target.value)); setSeekMessage(""); }}>
+              {selectedFightId === null && <option value="" disabled>Select a fight</option>}
+              {report.fights.map((fight, index) => <option key={fight.id} value={fight.id}>
+                {index + 1}. {fight.name} · {fight.kill ? "Kill" : "Wipe"} · {formatTime((fight.endTime - fight.startTime) / 1000)}
+              </option>)}
+            </select>
           </div>
-        </div>
+          <button className="button" disabled={!selectedFight} onClick={() => selectedFight && handleSeek(selectedFight.startTime / 1000)}>Jump to fight start</button>
+        </section>
 
-        {/* Super Timeline */}
-        <div className="bg-[#181824] rounded-2xl shadow-xl p-6 border border-[#35354a]">
-          <SuperTimeline
-            key={`${wclCode}-${videoMetadata?.duration || 0}-${videoMetadata?.publishedAt || videoMetadata?.createdAt || "unknown"}`}
-            reportStartTime={report.startTime}
-            reportEndTime={report.endTime}
-            fights={report.fights}
-            selectedFightId={selectedFight?.id || null}
-            onFightSelect={handleFightSelect}
-            events={getCurrentFightEvents()}
-            currentVideoTime={currentVideoTime}
-            offset={offset}
-            onTimelineClick={handleTimelineClick}
-            videoDuration={videoMetadata?.duration || 0}
-            videoStartTime={videoMetadata?.publishedAt ? new Date(videoMetadata.publishedAt).getTime() : videoMetadata?.createdAt ? new Date(videoMetadata.createdAt).getTime() : 0}
-            onOffsetChange={handleOffsetChange}
-            onOffsetCommit={handleOffsetCommit}
-            onOffsetReset={handleOffsetReset}
-            initialOffset={savedOffset}
-            autoSyncLatencySeconds={vodPlatform === "twitch" ? 4.5 : 0}
-          />
-        </div>
+        {selectedFight && <section aria-label="Event results" aria-busy={!eventsReady}>
+          {!eventsReady ? <p role="status" className="text-gray-300">Loading fight events…</p> :
+            eventError ? <div className="notice"><p role="alert">{eventError}</p><button className="button mt-3" onClick={() => setEventAttempt(value => value + 1)}>Retry events</button></div> :
+            !events.length ? <div className="notice"><h2 className="font-semibold">No tracked events in this fight.</h2><p className="mt-2 text-gray-300">There are no player deaths or NPC casts to show. Try another fight or review the video above.</p></div> :
+            <EventList key={selectedFight.id} events={events} fightStart={selectedFight.startTime} onSeek={handleSeek} />}
+        </section>}
+        <p role="status" className="text-sm text-blue-200">{seekMessage}</p>
+
+      </>}
       </div>
-    </div>
+      </div>
+      {!!report.fights.length && (
+        <section id="review-timeline" tabIndex={-1} aria-label="Review timeline" className="min-w-0 scroll-mt-4 rounded-xl border border-[#35354a] bg-[#181824] p-3 sm:p-5">
+          <SuperTimeline key={(videoMetadata?.duration || "pending") + ":" + syncRevision}
+            reportStartTime={report.startTime} reportEndTime={report.endTime} fights={report.fights}
+            selectedFightId={selectedFightId} onFightSelect={setSelectedFightId} events={events}
+            currentVideoTime={currentVideoTime} offset={offset} onTimelineClick={handleSeek}
+            videoDuration={videoMetadata?.duration || 0} videoStartTime={Number.isFinite(videoStart) ? videoStart : 0}
+            onOffsetChange={setOffset} onOffsetCommit={commitOffset} onOffsetReset={resetOffset}
+            initialOffset={savedSync.offset} autoSyncLatencySeconds={platform === "twitch" ? 4.5 : 0}
+            eventsStatus={eventsStatus} canAlign={playerReady} />
+          {!savedSync.available && <p role="status" className="mt-3 text-sm text-amber-200">Calibration applies for this session. Browser storage is unavailable, so it cannot be saved.</p>}
+          {usingSharedOffset && <p className="mt-3 text-sm text-blue-200">Using this moment’s calibration. Your existing browser calibration is kept until you adjust the sync.</p>}
+        </section>
+
+      )}
+    </main>
   );
 }

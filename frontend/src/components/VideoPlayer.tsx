@@ -9,6 +9,7 @@ export interface VideoPlayerProps {
   videoId: string;
   startSeconds?: number;
   onReady?: () => void;
+  onError?: () => void;
   onTimeUpdate?: (currentTime: number) => void;
 }
 
@@ -17,7 +18,7 @@ export interface VideoPlayerRef {
   getCurrentTime: () => number;
 }
 
-const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ platform, videoId, startSeconds = 0, onReady, onTimeUpdate }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ platform, videoId, startSeconds = 0, onReady, onError, onTimeUpdate }, ref) => {
   const youtubePlayerRef = useRef<YouTubePlayerRef>(null);
   const twitchPlayerRef = useRef<TwitchPlayerRef>(null);
 
@@ -40,11 +41,11 @@ const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({ platform, vi
   }));
 
   if (platform === "youtube") {
-    return <YouTubePlayer ref={youtubePlayerRef} videoId={videoId} startSeconds={startSeconds} onReady={onReady} onTimeUpdate={onTimeUpdate} />;
+    return <YouTubePlayer key={videoId + startSeconds} ref={youtubePlayerRef} videoId={videoId} startSeconds={startSeconds} onReady={onReady} onError={onError} onTimeUpdate={onTimeUpdate} />;
   }
 
   if (platform === "twitch") {
-    return <TwitchPlayer ref={twitchPlayerRef} videoId={videoId} startSeconds={startSeconds} onReady={onReady} onTimeUpdate={onTimeUpdate} />;
+    return <TwitchPlayer key={videoId + startSeconds} ref={twitchPlayerRef} videoId={videoId} startSeconds={startSeconds} onReady={onReady} onError={onError} onTimeUpdate={onTimeUpdate} />;
   }
 
   return (
