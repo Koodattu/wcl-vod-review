@@ -130,6 +130,14 @@ docker compose up --build
 
 Only the frontend port is published; MongoDB and the backend stay on the private Compose network. For an internet deployment, put the frontend behind HTTPS. Twitch requires HTTPS for embeds on non-localhost domains.
 
+### Production deployment
+
+The live application is [wcl.koodattu.dev](https://wcl.koodattu.dev). The existing `koodattu-auto-deploy.timer` on `vaarattu-server` checks `main` about every five minutes, fast-forwards the checkout, and builds/recreates the application with Docker Compose. A normal push to `main` is a production release.
+
+The authoritative operating instructions and configuration are in the sibling `deployments` repository, starting with its `README.md`. On the server, the app lives at `/srv/projects/wcl-vod-review` and uses `docker-compose.yml` together with `/srv/projects/deployments/overrides/wcl-vod-review.yaml`. The shared Caddy proxy provides HTTPS; the backend and MongoDB remain private.
+
+Use the existing `ssh vaarattu-server` access to verify a release. The successful app/deployments revision pair is recorded in `/var/lib/koodattu-auto-deploy/wcl-vod-review.state`; project-specific results appear in the `koodattu-auto-deploy.service` journal. Check the three application containers' health and the public page after deployment. The shared service can report a failure for another project even when this application deployed successfully. Let the running deployer finish before considering a manual release, and follow the deployments repository's rollback guidance.
+
 ## How to Use
 
 1. Navigate to the homepage
