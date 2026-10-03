@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-03",
+  "engine": "MongoDB 7.0.40",
+  "documents": 1000,
+  "collection": "cachedevents",
+  "filter": {
+    "reportCode": "Synthetic500",
+    "fightId": 1,
+    "startTime": 0,
+    "endTime": 3000,
+    "eventTypes": ["Casts", "Deaths"],
+    "cacheVersion": 2
+  },
+  "winningPlan": "LIMIT -> FETCH -> IXSCAN",
+  "index": "reportCode_1_fightId_1_startTime_1_endTime_1",
+  "nReturned": 1,
+  "totalKeysExamined": 1,
+  "totalDocsExamined": 1,
+  "scope": "Disposable localhost synthetic database, dropped after inspection. No production latency or storage inference."
+}

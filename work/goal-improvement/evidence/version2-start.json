@@ -1,0 +1,176 @@
+{
+  "revision": "81cc7750b77880f8a3e4a125c1dbd45e160abc28",
+  "branch": "main",
+  "date": "2026-10-03",
+  "note": "Preserved local work from the preceding improvement goal; no staged changes",
+  "files": [
+    {
+      "path": "backend/src/app.ts",
+      "sha256": "77F7C3E2222FDB76EA96C5EB2B209111D33234B429B21EDC9A8595F66BCBA1ED"
+    },
+    {
+      "path": "backend/src/lib/videoMetadata.ts",
+      "sha256": "2944C2414289D84244EA0985181EE2FFAC86BC94A773D840933645BDFA4EBE47"
+    },
+    {
+      "path": "backend/test/integration/api.test.js",
+      "sha256": "FFE21427DC7B5400AEBFF814C1DD37A61D9048A13F56709D314BC4AE10D48CA8"
+    },
+    {
+      "path": "backend/test/integration/wcl.test.js",
+      "sha256": "A449808B3478E5001DFA2E096F0BF8502EBF58CE67F9266DBB3549C0834919C8"
+    },
+    {
+      "path": "backend/test/serve-fixtures.js",
+      "sha256": "D1EC797228350FEA54FB21CAAABA95E120659E3ADA17F78E0BE717C475875B55"
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "sha256": "A2DEBAB0313B8C51DEDFD9EE3900359EAA1844263A18955904C007DB2732957F"
+    },
+    {
+      "path": "frontend/src/components/EventList.tsx",
+      "sha256": "F69789941C8494512D6BCF703FF78168C0C584E6E4CFA4D1F2858DEA680B591A"
+    },
+    {
+      "path": "frontend/src/lib/playerScript.ts",
+      "sha256": "6BF2E1281D5B2965E73F0240EE09725F5C1B997372BE0F3CB56B7EAC47C5D400"
+    },
+    {
+      "path": "frontend/test/fixtures.ts",
+      "sha256": "0B2339F47EABA5D452147A3E6197A43269BABC791762636D3A44B24D534277ED"
+    },
+    {
+      "path": "frontend/test/full-stack.spec.ts",
+      "sha256": "A766C8B4886984B0CE59EA74FA44162A40C099FC010176D7F97ABAD7316B66A4"
+    },
+    {
+      "path": "frontend/test/home.spec.ts",
+      "sha256": "BD574BB18A271B48BCC4F6F5AAAAE3DDD0277BC0C1F055912F2BA02A2DBC753A"
+    },
+    {
+      "path": "frontend/test/players.spec.ts",
+      "sha256": "0863CA3C5D0330A1B269B0E295C98EC97C91476C6E673C8AA43FB4196C7A216B"
+    },
+    {
+      "path": "frontend/test/timeline.spec.ts",
+      "sha256": "0F37E4AE0F4C1E35E1A0521D3A614C4E7A36F9C8C6286EBEE7FB5D4268247712"
+    },
+    {
+      "path": "work/goal-improvement/STATE.md",
+      "sha256": "DACE0BDC45701F09FA18AA85AC71824B43D70F75BE7259C790829FDEC6E2B5E9"
+    },
+    {
+      "path": "work/goal-improvement/evidence/cache-query-plan.json",
+      "sha256": "3D1B9C80D48837101108A7F84737065140A3C06678C1D7CB8031C46B389CFB18"
+    },
+    {
+      "path": "work/goal-improvement/evidence/form-recovery-desktop.png",
+      "sha256": "3CDA207D89BC9CDE868644B871FABCAB05BA5ECA533E040938EF38A0F30A48EB"
+    },
+    {
+      "path": "work/goal-improvement/evidence/form-recovery-mobile.png",
+      "sha256": "29052D47D336DF547E6E7196649863216E5A7D26FFFD03D5E79AB9AF3CE703E4"
+    },
+    {
+      "path": "work/goal-improvement/evidence/narrow-before.png",
+      "sha256": "22AD91C1752F65FEF249E19B7AD6949E5800865E7A5D5CABEAF02CBDFD666F36"
+    },
+    {
+      "path": "work/goal-improvement/evidence/narrow-empty-filter.png",
+      "sha256": "9E0267B4E86A78A165C247D4EB2F82D7178634E3895153B80E3F4CF089ABF964"
+    },
+    {
+      "path": "work/goal-improvement/evidence/review-desktop.png",
+      "sha256": "B195B20F59224EA6E9971F4294772AA796FCE002448899FFEA794EA5C5D94D5A"
+    },
+    {
+      "path": "work/goal-improvement/evidence/review-mobile.png",
+      "sha256": "BE4ED0A3D7B160ECE380297EE93733EEC2BE82F85E9126EFBBA4109FC2754DA3"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "C77E92607495BE869B97E2C234650FB546CDE08AF093A55655668886322AE631"
+    },
+    {
+      "path": "README.md",
+      "sha256": "FB5E028AB5C552835F4865B9AF654BA31D13452FE2C9E9112B2BF8ADB7B3AA3F"
+    },
+    {
+      "path": "backend/package.json",
+      "sha256": "27DDC6D14DE693496DDE073D62653BE3791B4892E413F45033336E11B1B6EBB0"
+    },
+    {
+      "path": "backend/src/index.ts",
+      "sha256": "EA9E8A7FA91E9F4B856675B52CC326CB18B5B41533E37E43ED0D092C96C9F3D1"
+    },
+    {
+      "path": "backend/src/lib/blizzard.ts",
+      "sha256": "6D7E0E7FF7201329947A93BC0A9EC40C0FFCBFFE75553D0CF0A9F50C5FACED9D"
+    },
+    {
+      "path": "backend/src/lib/database.ts",
+      "sha256": "A3500085FCA2558203F479A6999EF5C1539BB85FD708CFEAC2D4AE786AD37994"
+    },
+    {
+      "path": "backend/src/lib/twitch.ts",
+      "sha256": "D77AB75E72393CF02A258CA5BF6321D6C95A28A13CBF788DC50F511349A532B5"
+    },
+    {
+      "path": "backend/src/lib/wcl.ts",
+      "sha256": "35CA55C806B9E334D8D80B93763521C97BC29B4E408943F6BE7ED0A81B8E9F69"
+    },
+    {
+      "path": "backend/src/lib/youtube.ts",
+      "sha256": "B032E9EEAD24790A41B1813062BB1577F5107254821B22CF23032A38A45E1E11"
+    },
+    {
+      "path": "backend/src/models/index.ts",
+      "sha256": "4C897950110AE30F4ABAA3B57CD43DBB19D4600646A4CA985C1BF2E49792A2B7"
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "sha256": "6770C0C825C88BDD7C2FDCBB9678915C4ED73D703419E428B0E0A72FD599BA0A"
+    },
+    {
+      "path": "frontend/package.json",
+      "sha256": "148EA826D729B37D0FE30276291C7554EE982EA6A2DCA5455CE0E983014A1204"
+    },
+    {
+      "path": "frontend/src/app/globals.css",
+      "sha256": "B2CD31BFE7223DAEA3AD33E4AF4CA509E44E92CAB5730697DBE0C0CAB509C1C3"
+    },
+    {
+      "path": "frontend/src/app/layout.tsx",
+      "sha256": "90FE160EC29D55B5B35E20C83875288A285DA74BA08116DA8D5D29275A85D7CF"
+    },
+    {
+      "path": "frontend/src/app/page.tsx",
+      "sha256": "DEF5C80E6BA060E8B5F7F43B6F0DDEBC2CA5DAD66C38E31C1E916E613655ACAB"
+    },
+    {
+      "path": "frontend/src/app/timeline/page.tsx",
+      "sha256": "7336172E0611CBBF9BAD6535FFA6ECFA1D6ADDE5AD4734EDCAB24BFD36491AE7"
+    },
+    {
+      "path": "frontend/src/components/SuperTimeline.tsx",
+      "sha256": "BA945DDB8FF08AF514EB4CAFC5F990046C33D71AE49041407FA0918CE2AC18F3"
+    },
+    {
+      "path": "frontend/src/components/TwitchPlayer.tsx",
+      "sha256": "46FAF8BC72908A6858CD935281D7CA58DE7F5C0248B9781053FDD3AA462FE58B"
+    },
+    {
+      "path": "frontend/src/components/VideoPlayer.tsx",
+      "sha256": "1099F655F42D89CC703869867642EACF5F0006F2B09A0E057B80DE7A4B03E29B"
+    },
+    {
+      "path": "frontend/src/components/YouTubePlayer.tsx",
+      "sha256": "56274972F6B08DC055BF7CC68B69A2A6173EF4C08EA67D66D3E3DFC532EAAC63"
+    },
+    {
+      "path": "frontend/src/lib/api.ts",
+      "sha256": "B34D9BBCC3C5870C8F74F33003EC3730039CC8C02AA602664A620AEF9CF157FC"
+    }
+  ]
+}
