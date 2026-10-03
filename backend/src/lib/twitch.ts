@@ -76,6 +76,7 @@ export class TwitchClient {
 
     try {
       const response = await axios.post<TwitchAuthResponse>(this.authUrl, null, {
+        timeout: 15_000,
         params: {
           client_id: this.clientId,
           client_secret: this.clientSecret,
@@ -106,6 +107,7 @@ export class TwitchClient {
       const token = await this.authenticate();
 
       const response = await axios.get<TwitchVideosResponse>(`${this.baseUrl}/videos`, {
+        timeout: 15_000,
         params: {
           id: videoId,
         },

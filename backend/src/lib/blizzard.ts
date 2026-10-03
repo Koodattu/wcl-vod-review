@@ -85,6 +85,7 @@ export class BlizzardApiClient {
             username: this.clientId,
             password: this.clientSecret,
           },
+          timeout: 15_000,
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
@@ -124,6 +125,7 @@ export class BlizzardApiClient {
 
     try {
       const response = await axios.get<T>(url, {
+        timeout: 15_000,
         headers: {
           Authorization: `Bearer ${token}`,
         },

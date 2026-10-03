@@ -56,6 +56,7 @@ export class YouTubeClient {
 
     try {
       const response = await axios.get<YouTubeVideoResponse>(`${this.baseUrl}/videos`, {
+        timeout: 15_000,
         params: {
           part: "snippet,contentDetails",
           id: videoId,

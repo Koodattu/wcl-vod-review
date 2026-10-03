@@ -72,6 +72,8 @@ export interface CachedEventsDocument extends Document {
   endTime: number;
   events: EventDocument[];
   lastUpdated: Date;
+  eventTypes?: string[];
+  cacheVersion?: number;
 }
 
 // Schemas
@@ -157,6 +159,8 @@ const CachedEventsSchema = new Schema({
   endTime: { type: Number, required: true },
   events: [EventSchema],
   lastUpdated: { type: Date, default: Date.now },
+  eventTypes: [String],
+  cacheVersion: { type: Number },
 });
 
 // Add indexes (removed duplicate index on code since it's already unique)

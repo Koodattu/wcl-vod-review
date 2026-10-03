@@ -2,62 +2,30 @@ import mongoose from "mongoose";
 
 export class Database {
   private static instance: Database;
-  private isConnected: boolean = false;
 
-  private constructor() {}
+  private constructor() {
+    mongoose.connection.on("error", () => console.error("MongoDB connection error"));
+    mongoose.connection.on("disconnected", () => console.log("MongoDB disconnected"));
+  }
 
   public static getInstance(): Database {
-    if (!Database.instance) {
-      Database.instance = new Database();
-    }
+    if (!Database.instance) Database.instance = new Database();
     return Database.instance;
   }
 
   public async connect(): Promise<void> {
-    if (this.isConnected) {
-      return;
-    }
-
+    if (mongoose.connection.readyState === 1) return;
     const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/wcl_vod_review";
-
-    try {
-      await mongoose.connect(mongoUri);
-      this.isConnected = true;
-      console.log("✅ Connected to MongoDB");
-
-      // Handle connection events
-      mongoose.connection.on("error", (error) => {
-        console.error("❌ MongoDB connection error:", error);
-        this.isConnected = false;
-      });
-
-      mongoose.connection.on("disconnected", () => {
-        console.log("⚠️  MongoDB disconnected");
-        this.isConnected = false;
-      });
-
-    } catch (error) {
-      console.error("❌ Error connecting to MongoDB:", error);
-      throw error;
-    }
+    await mongoose.connect(mongoUri);
+    console.log("Connected to MongoDB");
   }
 
   public async disconnect(): Promise<void> {
-    if (!this.isConnected) {
-      return;
-    }
-
-    try {
-      await mongoose.disconnect();
-      this.isConnected = false;
-      console.log("✅ Disconnected from MongoDB");
-    } catch (error) {
-      console.error("❌ Error disconnecting from MongoDB:", error);
-      throw error;
-    }
+    // Also close a disconnected client's reconnect loop during shutdown.
+    await mongoose.disconnect();
   }
 
   public getConnectionState(): boolean {
-    return this.isConnected && mongoose.connection.readyState === 1;
+    return mongoose.connection.readyState === 1;
   }
 }

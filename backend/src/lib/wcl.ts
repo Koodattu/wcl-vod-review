@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Report, CachedEvents, ReportDocument, CachedEventsDocument, AuthToken } from "../models/index";
+import { Report, CachedEvents, AuthToken } from "../models/index";
 
 interface WCLAccessTokenResponse {
   access_token: string;
@@ -47,7 +47,7 @@ interface WCLEventsResponse {
           ability?: { name: string; guid: number; type: number };
           data?: any;
         }>;
-        nextPageTimestamp?: number;
+        nextPageTimestamp?: number | null;
       } | null;
     } | null;
   } | null;
@@ -161,6 +161,7 @@ export class WarcraftLogsClient {
       const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString("base64");
 
       const response = await axios.post<WCLAccessTokenResponse>(`${this.apiBase}/oauth/token`, "grant_type=client_credentials", {
+        timeout: 15_000,
         headers: {
           Authorization: `Basic ${auth}`,
           "Content-Type": "application/x-www-form-urlencoded",
@@ -203,6 +204,7 @@ export class WarcraftLogsClient {
           variables,
         },
         {
+          timeout: 15_000,
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -310,7 +312,7 @@ export class WarcraftLogsClient {
       return report;
     } catch (error: any) {
       console.error(`Error fetching report ${reportCode}:`, error.message);
-      return null;
+      throw error;
     }
   }
 
@@ -409,7 +411,7 @@ export class WarcraftLogsClient {
       return { abilities, actors };
     } catch (error: any) {
       console.error(`Error fetching master data for ${reportCode}:`, error.message);
-      return { abilities: new Map(), actors: new Map() };
+      throw error;
     }
   }
 
@@ -522,27 +524,11 @@ export class WarcraftLogsClient {
         fights: enhancedFights,
       };
 
-      // Update the database with enhanced data
-      try {
-        await Report.updateOne(
-          { code: reportCode },
-          {
-            $set: {
-              fights: enhancedFights,
-              lastUpdated: new Date(),
-            },
-          }
-        );
-        console.log(`✅ Updated cached report ${reportCode} with encounter details (journalID, encounterName, zoneName)`);
-      } catch (dbError: any) {
-        console.error(`❌ Database error updating enhanced report ${reportCode}:`, dbError.message);
-        // Don't fail the request if database update fails, just log and continue
-      }
-
+      // Only a fresh report response may update the cached fights and source age.
       return enhancedReport;
     } catch (error: any) {
       console.error(`Error fetching enhanced report ${reportCode}:`, error.message);
-      return null;
+      throw error;
     }
   }
 
@@ -553,15 +539,14 @@ export class WarcraftLogsClient {
     endTime?: number,
     eventTypes: string[] = ["Deaths", "Casts"]
   ): Promise<{ events: SimpleEvent[]; cached: boolean; lastUpdated?: Date }> {
+    const normalizedTypes = [...new Set(eventTypes)].sort();
+    const cacheKey = fightId !== undefined && startTime !== undefined && endTime !== undefined
+      ? { reportCode, fightId, startTime, endTime, eventTypes: normalizedTypes, cacheVersion: 2 }
+      : null;
     try {
       // Check cache first
-      if (fightId && startTime && endTime) {
-        const cached = await CachedEvents.findOne({
-          reportCode,
-          fightId,
-          startTime,
-          endTime,
-        });
+      if (cacheKey) {
+        const cached = await CachedEvents.findOne(cacheKey);
 
         if (cached) {
           // Check if cache is still valid (under 15 minutes old)
@@ -585,21 +570,21 @@ export class WarcraftLogsClient {
 
       // Fetch from WCL API
       const events: SimpleEvent[] = [];
-      let nextPageTimestamp: number | undefined;
+      let nextPageTimestamp: number | null | undefined;
       let pageCount = 0;
-      const maxPages = 10; // Safety limit
+      const maxPages = 100; // Bound upstream work; never return a truncated success.
 
       do {
         const query = `
-          query GetEvents($code: String!, $startTime: Float!, $endTime: Float!, $filterExpression: String) {
+          query GetEvents($code: String!, $startTime: Float!, $endTime: Float!, $filterExpression: String, $fightIDs: [Int]) {
             reportData {
               report(code: $code) {
                 events(
                   startTime: $startTime
                   endTime: $endTime
                   filterExpression: $filterExpression
+                  fightIDs: $fightIDs
                   limit: 1000
-                  ${nextPageTimestamp ? `startingAfterTime: ${nextPageTimestamp}` : ""}
                 ) {
                   data
                   nextPageTimestamp
@@ -609,7 +594,7 @@ export class WarcraftLogsClient {
           }
         `;
 
-        const filterExpressions = eventTypes
+        const filterExpressions = normalizedTypes
           .map((type) => {
             if (type === "Deaths") {
               // Filter to only player deaths (exclude pets and NPCs)
@@ -624,16 +609,17 @@ export class WarcraftLogsClient {
 
         const variables: any = {
           code: reportCode,
-          startTime: startTime || 0,
-          endTime: endTime || Date.now(),
+          startTime: nextPageTimestamp ?? startTime ?? 0,
+          endTime: endTime ?? Date.now(),
           filterExpression: filterExpressions.join(" or "),
+          fightIDs: fightId !== undefined ? [fightId] : undefined,
         };
 
         const result = await this.executeGraphQLQuery<WCLEventsResponse>(query, variables);
         const eventData = result.reportData?.report?.events;
 
-        if (!eventData || !eventData.data) {
-          break;
+        if (!eventData || !Array.isArray(eventData.data)) {
+          throw new Error("Warcraft Logs did not return events for this report. Retry or check the report link.");
         }
 
         // Process events and enhance with master data
@@ -673,24 +659,29 @@ export class WarcraftLogsClient {
 
         nextPageTimestamp = eventData.nextPageTimestamp;
         pageCount++;
-      } while (nextPageTimestamp && pageCount < maxPages);
+        if (nextPageTimestamp !== null && nextPageTimestamp !== undefined) {
+          if (!Number.isFinite(nextPageTimestamp) || nextPageTimestamp <= variables.startTime || nextPageTimestamp > variables.endTime) {
+            throw new Error("Warcraft Logs event pagination did not advance. Please retry.");
+          }
+          if (pageCount >= maxPages) {
+            throw new Error("This event range is too large. Select a shorter fight and retry.");
+          }
+        }
+      } while (nextPageTimestamp !== null && nextPageTimestamp !== undefined);
 
       console.log(`Fetched ${events.length} events for ${reportCode} fight ${fightId || "all"}`);
 
       // Cache the results if we have fight and time info
-      if (fightId && startTime && endTime && events.length > 0) {
+      if (cacheKey) {
         try {
           const cacheData = {
-            reportCode,
-            fightId,
-            startTime,
-            endTime,
+            ...cacheKey,
             events,
             lastUpdated: new Date(),
           };
 
           console.log(`Caching ${events.length} events for ${reportCode} fight ${fightId}`);
-          await CachedEvents.findOneAndUpdate({ reportCode, fightId, startTime, endTime }, cacheData, { upsert: true, new: true });
+          await CachedEvents.findOneAndUpdate(cacheKey, cacheData, { upsert: true, new: true });
           console.log(`✅ Cached events for ${reportCode} fight ${fightId}`);
         } catch (dbError: any) {
           console.error(`❌ Database error saving events for ${reportCode} fight ${fightId}:`, dbError.message);
@@ -705,7 +696,7 @@ export class WarcraftLogsClient {
       };
     } catch (error: any) {
       console.error(`Error fetching events for ${reportCode}:`, error.message);
-      return { events: [], cached: false };
+      throw error;
     }
   }
 }
