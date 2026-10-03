@@ -19,7 +19,6 @@ export default function ReviewNotebook({ identity, fights, captureReview, player
   const saved = reviews.find(review => reviewKey(review) === reviewKey(identity));
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [fallbackLink, setFallbackLink] = useState("");
   const [draft, setDraft] = useState<{ note: ReviewNote; snapshot: ReviewSnapshot; editing: boolean } | null>(null);
   const [removed, setRemoved] = useState<ReviewNote | null>(null);
   const formRef = useRef<HTMLTextAreaElement>(null);
@@ -52,32 +51,9 @@ export default function ReviewNotebook({ identity, fights, captureReview, player
     setError(""); setMessage(""); focusDraft();
   };
 
-  const copyMoment = async () => {
-    const link = window.location.origin + reviewPath(captureReview());
-    setError("");
-    try {
-      await navigator.clipboard.writeText(link);
-      setFallbackLink(""); setMessage("Moment link copied. It includes the fight, video position and calibration.");
-    } catch {
-      setFallbackLink(link); setMessage("Clipboard unavailable. Select and copy the moment link below.");
-    }
-  };
-
-  return <div className="mt-5 border-t border-[#35354a] pt-5">
-    <div className="flex flex-wrap gap-2">
-      {!!fights.length && <a className="button" href="#review-timeline">Adjust sync</a>}
-      <button className="button" disabled={!playerReady} onClick={() => perform(() => saveReview(captureReview()), "Review saved in this browser.")}>Save review</button>
-      <button className="button" disabled={!playerReady} onClick={() => void copyMoment()}>Copy moment link</button>
-    </div>
-    <p role="status" className="mt-2 text-sm leading-relaxed text-blue-200">{message}</p>
+  return <section id="review-notes" tabIndex={-1} aria-label="Review notes" className="review-notes space-y-3">
+    <p role="status" className="text-sm leading-relaxed text-blue-200">{message}</p>
     {error && <p role="alert" className="mt-3 text-sm leading-relaxed text-red-200">{error}</p>}
-    {fallbackLink && <div className="mt-3 space-y-2">
-      <label htmlFor="moment-link" className="text-sm font-medium">Moment link</label>
-      <input id="moment-link" className="field" readOnly value={fallbackLink} onFocus={event => event.currentTarget.select()} />
-      <p className="text-sm text-gray-400">Anyone with this link needs access to the original report and video. Your notes are not included.</p>
-    </div>}
-
-    <section aria-label="Review notes" className="mt-5 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Review notes <span className="text-sm font-normal text-gray-400">({saved?.notes.length ?? 0})</span></h2>
         <div className="flex flex-wrap gap-2">
@@ -146,6 +122,5 @@ export default function ReviewNotebook({ identity, fights, captureReview, player
             </li>)}
           </ol>
         </div>}
-    </section>
-  </div>;
+  </section>;
 }

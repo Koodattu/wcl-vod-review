@@ -68,7 +68,7 @@ test("timestamped notes survive reload, support editing and export a useful debr
   await notes.getByRole("button", { name: "Undo delete" }).click();
   await expect(notes.getByText("Moonleaf: use a defensive before the roar.", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: "../work/goal-improvement/evidence/notebook-" + testInfo.project.name + ".png", fullPage: true });
+  await page.screenshot({ path: "../work/goal-improvement/evidence/workspace-release/notebook-" + testInfo.project.name + ".png", fullPage: true });
 });
 
 test("unavailable storage retains the note draft and never reports a successful save", async ({ page }) => {
@@ -123,7 +123,7 @@ test("saved reviews update across tabs and removal can be undone with notes inta
     await expect(saved.getByText("No saved reviews yet.")).toBeVisible();
     await saved.getByRole("button", { name: "Undo removal" }).click();
     await expect(saved.getByText(/Video 1:40 · 1 note/)).toBeVisible();
-    await page.screenshot({ path: "../work/goal-improvement/evidence/saved-reviews-" + testInfo.project.name + ".png", fullPage: true });
+    await page.screenshot({ path: "../work/goal-improvement/evidence/workspace-release/saved-reviews-" + testInfo.project.name + ".png", fullPage: true });
     await saved.getByRole("link", { name: /Saturday progression/ }).click();
     await expect(page.getByText("Keep the raid plan when returning.", { exact: true })).toBeVisible();
   } finally { await second.close(); }

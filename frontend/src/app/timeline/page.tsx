@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import VideoPlayer, { VideoPlayerRef } from "@/components/VideoPlayer";
 import SuperTimeline from "@/components/SuperTimeline";
 import EventList, { formatTime } from "@/components/EventList";
 import ReviewNotebook from "@/components/ReviewNotebook";
+import ReviewActions from "@/components/ReviewActions";
+import FightNavigator from "@/components/FightNavigator";
+import { filterEvents, trackedEvents } from "@/lib/events";
+import { readEventView, updateReviewView } from "@/lib/reviewView";
 import { isReviewIdentity, isReviewTime, type ReviewMoment, type ReviewSnapshot } from "@/lib/reviews";
 import { getWCLReport, getWCLEvents, getVideoMetadata, type Report, type Event, type VideoMetadata } from "@/lib/api";
 
@@ -25,7 +29,6 @@ function TimelineContent() {
   const wclCode = params.get("wclCode");
   const platform = params.get("vodPlatform");
   const vodId = params.get("vodId");
-  const fightId = Number(params.get("fightId"));
   const start = Number(params.get("startSeconds"));
   const rawOffset = params.get("syncOffset");
   const sharedOffset = rawOffset?.trim() && isReviewTime(Number(rawOffset)) ? Number(rawOffset) : null;
@@ -36,22 +39,24 @@ function TimelineContent() {
       <Link href="/" className="button button-primary">New review</Link>
     </main>;
   }
-  return <TimelineReview key={[wclCode, platform, vodId, fightId, start, sharedOffset].join(":")}
+  return <TimelineReview key={[wclCode, platform, vodId, start, sharedOffset].join(":")}
     wclCode={wclCode} platform={platform} vodId={vodId}
-    initialFightId={Number.isSafeInteger(fightId) && fightId > 0 ? fightId : null}
     startSeconds={isReviewTime(start) && start >= 0 ? start : 0} sharedOffset={sharedOffset} />;
 }
 
-function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds, sharedOffset }: {
+function TimelineReview({ wclCode, platform, vodId, startSeconds, sharedOffset }: {
   wclCode: string; platform: "youtube" | "twitch"; vodId: string;
-  initialFightId: number | null; startSeconds: number; sharedOffset: number | null;
+  startSeconds: number; sharedOffset: number | null;
 }) {
+  const params = useSearchParams();
   const [report, setReport] = useState<Report | null>(null);
   const [reportError, setReportError] = useState("");
   const [reportAttempt, setReportAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [selectedFightId, setSelectedFightId] = useState<number | null>(initialFightId);
-  const selectedFight = report?.fights.find(fight => fight.id === selectedFightId) ?? null;
+  const rawFightId = params.get("fightId");
+  const requestedFight = report?.fights.find(fight => fight.id === Number(rawFightId));
+  const selectedFight = rawFightId === "none" ? null : requestedFight ?? report?.fights[0] ?? null;
+  const selectedFightId = selectedFight?.id ?? null;
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
   const [metadataError, setMetadataError] = useState("");
   const [metadataAttempt, setMetadataAttempt] = useState(0);
@@ -65,10 +70,13 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
   const [hasNoteDraft, setHasNoteDraft] = useState(false);
   const [currentVideoTime, setCurrentVideoTime] = useState(startSeconds);
   const [seekMessage, setSeekMessage] = useState("");
+  const { filter: eventFilter, query: eventQuery, leadIn, page: eventPage } = readEventView(params);
+  const [activeTimestamp, setActiveTimestamp] = useState<number | null>(null);
   const [playerReady, setPlayerReady] = useState(false);
   const markPlayerReady = useCallback(() => setPlayerReady(true), []);
   const markPlayerUnavailable = useCallback(() => setPlayerReady(false), []);
   const playerRef = useRef<VideoPlayerRef>(null);
+  const videoViewportRef = useRef<HTMLDivElement>(null);
   const syncStorageKey = "wcl-vod-review:sync:" + wclCode + ":" + platform + ":" + vodId;
   const [savedSync, setSavedSync] = useState(() => {
     try {
@@ -88,7 +96,6 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
         const data = await getWCLReport(wclCode, controller.signal);
         if (controller.signal.aborted) return;
         setReport(data);
-        setSelectedFightId(current => data.fights.some(fight => fight.id === current) ? current : data.fights[0]?.id ?? null);
       } catch (error) {
         if (!controller.signal.aborted) setReportError(error instanceof Error ? error.message : "Could not load the report.");
       } finally {
@@ -140,20 +147,35 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
     return () => controller.abort();
   }, [wclCode, selectedFight, eventAttempt]);
 
-  const handleSeek = useCallback((reportSeconds: number) => {
+  const handleSeek = useCallback((reportSeconds: number, beforeSeconds = 0) => {
     if (!playerReady) {
       setSeekMessage("The video is still loading. Try again when the player is ready.");
-      return;
+      return false;
     }
-    const videoTime = reportSeconds - offset;
-    if (videoTime < 0 || (videoMetadata && videoTime > videoMetadata.duration)) {
+    const eventVideoTime = reportSeconds - offset;
+    if (eventVideoTime < 0 || (videoMetadata && eventVideoTime > videoMetadata.duration)) {
       setSeekMessage("This event falls outside the video. Adjust the sync, then try again.");
-      return;
+      return false;
     }
+    const videoTime = Math.max(0, eventVideoTime - beforeSeconds);
     playerRef.current?.seekTo(videoTime);
     setCurrentVideoTime(videoTime);
     setSeekMessage("Video moved to " + formatTime(videoTime) + ".");
+    videoViewportRef.current?.scrollIntoView({ block: "nearest" });
+    return true;
   }, [offset, videoMetadata, playerReady]);
+
+  const handleEventSeek = (reportSeconds: number) => {
+    if (handleSeek(reportSeconds, leadIn)) setActiveTimestamp(reportSeconds * 1000);
+  };
+  const eventsReady = eventResult?.fightId === selectedFightId;
+  const rawEvents = eventsReady ? eventResult.events : EMPTY_EVENTS;
+  const events = useMemo(() => trackedEvents(rawEvents), [rawEvents]);
+  const visibleEvents = useMemo(() => filterEvents(events, eventFilter, eventQuery), [events, eventFilter, eventQuery]);
+  const selectFight = (id: number | null) => {
+    updateReviewView({ fightId: id === null ? "none" : String(id), eventPage: null }, true);
+    setSeekMessage(""); setActiveTimestamp(null);
+  };
 
   const commitOffset = useCallback((value: number) => {
     let available = true;
@@ -179,10 +201,8 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
     <button className="button button-primary" onClick={() => setReportAttempt(value => value + 1)}>Retry report</button>
   </main>;
 
-  const eventsReady = eventResult?.fightId === selectedFightId;
-  const events = eventsReady ? eventResult.events : EMPTY_EVENTS;
   const eventError = eventsReady ? eventResult.error : "";
-  const eventsStatus = !selectedFight ? "Select a fight to review" : !eventsReady ? "Loading fight events…" : eventError ? "Events unavailable" : events.length ? "" : "No tracked events";
+  const eventsStatus = !selectedFight ? "Select a fight to review" : !eventsReady ? "Loading fight events…" : eventError ? "Events unavailable" : visibleEvents.length ? "" : events.length ? "No matching events" : "No tracked events";
   const videoStart = platform === "twitch" ? Date.parse(videoMetadata?.createdAt || "") : 0;
   const captureReview = (): ReviewSnapshot => ({
     wclCode, platform, vodId, title: report.title,
@@ -194,7 +214,7 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
       setSeekMessage("This note falls outside the video. Check the original recording.");
       return;
     }
-    setSelectedFightId(report.fights.some(fight => fight.id === moment.fightId) ? moment.fightId : null);
+    selectFight(report.fights.some(fight => fight.id === moment.fightId) ? moment.fightId : null);
     setSavedSync(current => ({ ...current, offset: moment.syncOffset }));
     setOffset(moment.syncOffset);
     setUsingSharedOffset(true);
@@ -202,21 +222,28 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
     playerRef.current?.seekTo(moment.startSeconds);
     setCurrentVideoTime(moment.startSeconds);
     setSeekMessage("Video moved to " + formatTime(moment.startSeconds) + ". Note calibration restored.");
+    videoViewportRef.current?.scrollIntoView({ block: "nearest" });
   };
 
   return (
-    <main className="page-shell space-y-6">
-      <header className="space-y-3">
+    <main className="page-shell review-workspace space-y-5">
+      <header className="space-y-2">
         <Link href="/" className="text-link" onNavigate={event => {
           if (hasNoteDraft && !window.confirm("Leave this review? Your unsaved note will be lost.")) event.preventDefault();
         }}>← New review</Link>
-        <h1 className="break-words text-2xl font-semibold sm:text-3xl">{report.title}</h1>
-        <p className="text-sm text-gray-400">Report {wclCode} · {report.fights.length} boss fights</p>
+        <h1 className="break-words text-2xl font-semibold">{report.title}</h1>
+        <div className="flex flex-wrap items-center gap-x-4 text-sm text-gray-400">
+          <p>{report.fights.length} boss fights</p>
+          <a href={`https://www.warcraftlogs.com/reports/${encodeURIComponent(wclCode)}${selectedFightId ? `#fight=${selectedFightId}` : ""}`} target="_blank" rel="noreferrer" className="text-link">Open combat log</a>
+        </div>
       </header>
-
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
-      <section aria-label="Video" className="min-w-0 xl:sticky xl:top-4">
-        <div className={"aspect-video w-full rounded-lg bg-black " + (platform === "twitch" ? "min-h-[300px] overflow-x-auto" : "min-h-[200px] overflow-hidden")}>
+      {!!report.fights.length && <>
+        <FightNavigator fights={report.fights} selectedId={selectedFightId} onSelect={selectFight} onJump={() => selectedFight && handleSeek(selectedFight.startTime / 1000)} />
+        {rawFightId && rawFightId !== "none" && !requestedFight && <p role="status" className="text-sm text-amber-200">This fight is not in the report. Showing the first available fight.</p>}
+      </>}
+      <div className="review-evidence">
+      <section aria-label="Video" className="min-w-0">
+        <div ref={videoViewportRef} className={"aspect-video w-full rounded-lg bg-black " + (platform === "twitch" ? "min-h-[300px] overflow-x-auto" : "min-h-[200px] overflow-hidden")}>
           <VideoPlayer ref={playerRef} platform={platform} videoId={vodId} startSeconds={startSeconds} onTimeUpdate={setCurrentVideoTime} onReady={markPlayerReady} onError={markPlayerUnavailable} />
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-300">
@@ -228,8 +255,8 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
           <p role="alert">{metadataError} You can still review events and align the video manually.</p>
           <button className="button mt-3" onClick={() => setMetadataAttempt(value => value + 1)}>Retry video details</button>
         </div>}
-        <ReviewNotebook identity={{ wclCode, platform, vodId }} fights={report.fights} captureReview={captureReview} playerReady={playerReady}
-          onOpenMoment={openMoment} onDraftChange={setHasNoteDraft} />
+        <ReviewActions captureReview={captureReview} playerReady={playerReady} hasFights={!!report.fights.length} />
+        <p role="status" className="mt-2 text-sm text-blue-200">{seekMessage}</p>
       </section>
 
       <div className="min-w-0 space-y-5">
@@ -237,27 +264,17 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
         <h2 className="font-semibold">No boss fights in this report</h2>
         <p className="mt-2 text-gray-300">Choose a report with a recorded boss encounter to review its events.</p>
       </section> : <>
-        <section aria-label="Fight selection" className="flex flex-wrap items-end gap-3 border-y border-[#35354a] py-5">
-          <div className="min-w-0 basis-64 flex-1 space-y-2 text-sm font-medium">
-            <label htmlFor="fight">Fight</label>
-            <select id="fight" className="field" value={selectedFightId ?? ""} onChange={event => { setSelectedFightId(Number(event.target.value)); setSeekMessage(""); }}>
-              {selectedFightId === null && <option value="" disabled>Select a fight</option>}
-              {report.fights.map((fight, index) => <option key={fight.id} value={fight.id}>
-                {index + 1}. {fight.name} · {fight.kill ? "Kill" : "Wipe"} · {formatTime((fight.endTime - fight.startTime) / 1000)}
-              </option>)}
-            </select>
-          </div>
-          <button className="button" disabled={!selectedFight} onClick={() => selectedFight && handleSeek(selectedFight.startTime / 1000)}>Jump to fight start</button>
-        </section>
-
-        {selectedFight && <section aria-label="Event results" aria-busy={!eventsReady}>
-          {!eventsReady ? <p role="status" className="text-gray-300">Loading fight events…</p> :
+        <section id="review-events" tabIndex={-1} aria-label="Event results" aria-busy={!!selectedFight && !eventsReady}>
+          {!selectedFight ? <p className="notice">Select a fight to see its events.</p> : !eventsReady ? <p role="status" className="text-gray-300">Loading fight events…</p> :
             eventError ? <div className="notice"><p role="alert">{eventError}</p><button className="button mt-3" onClick={() => setEventAttempt(value => value + 1)}>Retry events</button></div> :
             !events.length ? <div className="notice"><h2 className="font-semibold">No tracked events in this fight.</h2><p className="mt-2 text-gray-300">There are no player deaths or NPC casts to show. Try another fight or review the video above.</p></div> :
-            <EventList key={selectedFight.id} events={events} fightStart={selectedFight.startTime} onSeek={handleSeek} />}
-        </section>}
-        <p role="status" className="text-sm text-blue-200">{seekMessage}</p>
-
+            <EventList key={selectedFight.id} events={visibleEvents} totalCount={events.length} fightStart={selectedFight.startTime}
+              filter={eventFilter} query={eventQuery} leadIn={leadIn} page={eventPage} activeTimestamp={activeTimestamp}
+              onFilterChange={filter => updateReviewView({ eventType: filter === "all" ? null : filter, eventPage: null })}
+              onQueryChange={query => updateReviewView({ q: query, eventPage: null })} onLeadInChange={value => updateReviewView({ leadIn: value ? String(value) : null })}
+              onPageChange={page => updateReviewView({ eventPage: page ? String(page + 1) : null })}
+              onClear={() => updateReviewView({ eventType: null, q: null, eventPage: null })} onSeek={handleEventSeek} />}
+        </section>
       </>}
       </div>
       </div>
@@ -265,8 +282,8 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
         <section id="review-timeline" tabIndex={-1} aria-label="Review timeline" className="min-w-0 scroll-mt-4 rounded-xl border border-[#35354a] bg-[#181824] p-3 sm:p-5">
           <SuperTimeline key={(videoMetadata?.duration || "pending") + ":" + syncRevision}
             reportStartTime={report.startTime} reportEndTime={report.endTime} fights={report.fights}
-            selectedFightId={selectedFightId} onFightSelect={setSelectedFightId} events={events}
-            currentVideoTime={currentVideoTime} offset={offset} onTimelineClick={handleSeek}
+            selectedFightId={selectedFightId} onFightSelect={selectFight} events={visibleEvents}
+            currentVideoTime={currentVideoTime} offset={offset} onTimelineClick={handleEventSeek}
             videoDuration={videoMetadata?.duration || 0} videoStartTime={Number.isFinite(videoStart) ? videoStart : 0}
             onOffsetChange={setOffset} onOffsetCommit={commitOffset} onOffsetReset={resetOffset}
             initialOffset={savedSync.offset} autoSyncLatencySeconds={platform === "twitch" ? 4.5 : 0}
@@ -276,6 +293,8 @@ function TimelineReview({ wclCode, platform, vodId, initialFightId, startSeconds
         </section>
 
       )}
+      <ReviewNotebook identity={{ wclCode, platform, vodId }} fights={report.fights} captureReview={captureReview} playerReady={playerReady}
+        onOpenMoment={openMoment} onDraftChange={setHasNoteDraft} />
     </main>
   );
 }

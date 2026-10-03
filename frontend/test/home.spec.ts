@@ -15,7 +15,7 @@ test("form keeps links on failure and opens the requested fight on retry", async
   await expect(error).toBeVisible();
   await expect(page.getByLabel("YouTube video or Twitch VOD URL")).toHaveValue("https://youtu.be/localVideo1?t=40");
   await expect(error).toBeFocused();
-  await page.screenshot({ path: "../work/goal-improvement/evidence/form-recovery-" + testInfo.project.name + ".png", fullPage: true });
+  await page.screenshot({ path: "../work/goal-improvement/evidence/workspace-release/form-recovery-" + testInfo.project.name + ".png", fullPage: true });
   failing = false;
   await page.getByRole("button", { name: "Create timeline" }).click();
   await expect(page.getByLabel("Fight", { exact: true })).toHaveValue("2");

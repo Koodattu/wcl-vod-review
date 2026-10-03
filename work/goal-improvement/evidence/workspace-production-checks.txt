@@ -1,0 +1,153 @@
+
+> wcl-vod-review-frontend@0.1.0 test:e2e
+> playwright test
+
+[WebServer] (node:23468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:36872) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:68060) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:77364) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 58 tests using 1 worker
+
+(node:14024) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [desktop] › test\full-stack.spec.ts:4:5 › links, events, calibration, notes and saved reviews work through the complete local stack (1.1s)
+  ok  2 [desktop] › test\home.spec.ts:4:5 › form keeps links on failure and opens the requested fight on retry (440ms)
+  ok  3 [desktop] › test\players.spec.ts:4:5 › a blocked video SDK gives a retry and can recover (459ms)
+  ok  4 [desktop] › test\players.spec.ts:17:5 › Twitch can seek and unmount using its documented playback interface (494ms)
+  ok  5 [desktop] › test\players.spec.ts:48:5 › leaving while the SDK loads does not create a late player (574ms)
+  ok  6 [desktop] › test\reviews.spec.ts:5:5 › a saved review reopens the selected fight, video moment and calibration (654ms)
+  ok  7 [desktop] › test\reviews.spec.ts:21:5 › moment links work in a fresh browser and recover when the clipboard is denied (1.0s)
+  ok  8 [desktop] › test\reviews.spec.ts:45:5 › timestamped notes survive reload, support editing and export a useful debrief (1.4s)
+  ok  9 [desktop] › test\reviews.spec.ts:74:5 › unavailable storage retains the note draft and never reports a successful save (497ms)
+  ok 10 [desktop] › test\reviews.spec.ts:88:5 › notes capture a fixed video moment and restore its fight and shared calibration (670ms)
+  ok 11 [desktop] › test\reviews.spec.ts:110:5 › saved reviews update across tabs and removal can be undone with notes intact (943ms)
+  ok 12 [desktop] › test\reviews.spec.ts:132:5 › damaged or unknown-version storage is preserved and quota failure retains a draft (801ms)
+  ok 13 [desktop] › test\reviews.spec.ts:157:5 › a full library does not evict existing reviews, and clipboard success is explicit (486ms)
+  ok 14 [desktop] › test\reviews.spec.ts:177:5 › a busy notebook fits a narrow screen, protects drafts and exports every note (619ms)
+  ok 15 [desktop] › test\timeline.spec.ts:4:5 › incomplete timeline links give a way back instead of loading forever (170ms)
+  ok 16 [desktop] › test\timeline.spec.ts:10:5 › a failed report can be retried without re-entering links (259ms)
+  ok 17 [desktop] › test\timeline.spec.ts:24:5 › events have visible loading, failure, retry and empty states (321ms)
+  ok 18 [desktop] › test\timeline.spec.ts:40:5 › calibration can align a fight without dragging and survive reload (449ms)
+  ok 19 [desktop] › test\timeline.spec.ts:52:5 › blocked browser storage does not prevent review or calibration (260ms)
+  ok 20 [desktop] › test\timeline.spec.ts:63:5 › metadata failure preserves events and can be retried (324ms)
+  ok 21 [desktop] › test\timeline.spec.ts:78:5 › review controls fit the viewport and remain usable after interaction (615ms)
+  x  22 [desktop] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion (5.3s)
+(node:31544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 23 [desktop] › test\workspace.spec.ts:34:5 › find a mechanic, coordinate the timeline and watch its lead-up (548ms)
+  ok 24 [desktop] › test\workspace.spec.ts:54:5 › pull browsing and event filters survive refresh and browser history without losing a note draft (696ms)
+  ok 25 [desktop] › test\workspace.spec.ts:86:5 › populated review keeps its evidence and controls usable (552ms)
+  ok 26 [desktop] › test\workspace.spec.ts:116:5 › event pages and the chosen view travel with a moment link (823ms)
+  ok 27 [desktop] › test\workspace.spec.ts:139:5 › unknown results, repeated deaths and recording boundaries remain truthful (368ms)
+  ok 28 [desktop] › test\workspace.spec.ts:171:5 › fight discovery resets empty results and retains filters on reload (717ms)
+  ok 29 [desktop] › test\workspace.spec.ts:195:5 › narrow and landscape workspaces keep keyboard controls and overflow contained (391ms)
+(node:39400) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 30 [mobile] › test\full-stack.spec.ts:4:5 › links, events, calibration, notes and saved reviews work through the complete local stack (918ms)
+  ok 31 [mobile] › test\home.spec.ts:4:5 › form keeps links on failure and opens the requested fight on retry (481ms)
+  ok 32 [mobile] › test\players.spec.ts:4:5 › a blocked video SDK gives a retry and can recover (473ms)
+  ok 33 [mobile] › test\players.spec.ts:17:5 › Twitch can seek and unmount using its documented playback interface (442ms)
+  ok 34 [mobile] › test\players.spec.ts:48:5 › leaving while the SDK loads does not create a late player (472ms)
+  ok 35 [mobile] › test\reviews.spec.ts:5:5 › a saved review reopens the selected fight, video moment and calibration (684ms)
+  ok 36 [mobile] › test\reviews.spec.ts:21:5 › moment links work in a fresh browser and recover when the clipboard is denied (1.0s)
+  ok 37 [mobile] › test\reviews.spec.ts:45:5 › timestamped notes survive reload, support editing and export a useful debrief (1.5s)
+  ok 38 [mobile] › test\reviews.spec.ts:74:5 › unavailable storage retains the note draft and never reports a successful save (641ms)
+  ok 39 [mobile] › test\reviews.spec.ts:88:5 › notes capture a fixed video moment and restore its fight and shared calibration (745ms)
+  ok 40 [mobile] › test\reviews.spec.ts:110:5 › saved reviews update across tabs and removal can be undone with notes intact (1.2s)
+  ok 41 [mobile] › test\reviews.spec.ts:132:5 › damaged or unknown-version storage is preserved and quota failure retains a draft (713ms)
+  ok 42 [mobile] › test\reviews.spec.ts:157:5 › a full library does not evict existing reviews, and clipboard success is explicit (374ms)
+  ok 43 [mobile] › test\reviews.spec.ts:177:5 › a busy notebook fits a narrow screen, protects drafts and exports every note (681ms)
+  ok 44 [mobile] › test\timeline.spec.ts:4:5 › incomplete timeline links give a way back instead of loading forever (170ms)
+  ok 45 [mobile] › test\timeline.spec.ts:10:5 › a failed report can be retried without re-entering links (288ms)
+  ok 46 [mobile] › test\timeline.spec.ts:24:5 › events have visible loading, failure, retry and empty states (361ms)
+  ok 47 [mobile] › test\timeline.spec.ts:40:5 › calibration can align a fight without dragging and survive reload (465ms)
+  ok 48 [mobile] › test\timeline.spec.ts:52:5 › blocked browser storage does not prevent review or calibration (295ms)
+  ok 49 [mobile] › test\timeline.spec.ts:63:5 › metadata failure preserves events and can be retried (349ms)
+  ok 50 [mobile] › test\timeline.spec.ts:78:5 › review controls fit the viewport and remain usable after interaction (737ms)
+  x  51 [mobile] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion (5.4s)
+(node:78212) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 52 [mobile] › test\workspace.spec.ts:34:5 › find a mechanic, coordinate the timeline and watch its lead-up (663ms)
+  ok 53 [mobile] › test\workspace.spec.ts:54:5 › pull browsing and event filters survive refresh and browser history without losing a note draft (776ms)
+  ok 54 [mobile] › test\workspace.spec.ts:86:5 › populated review keeps its evidence and controls usable (704ms)
+  ok 55 [mobile] › test\workspace.spec.ts:116:5 › event pages and the chosen view travel with a moment link (873ms)
+  ok 56 [mobile] › test\workspace.spec.ts:139:5 › unknown results, repeated deaths and recording boundaries remain truthful (336ms)
+  ok 57 [mobile] › test\workspace.spec.ts:171:5 › fight discovery resets empty results and retains filters on reload (805ms)
+  ok 58 [mobile] › test\workspace.spec.ts:195:5 › narrow and landscape workspaces keep keyboard controls and overflow contained (538ms)
+
+
+  1) [desktop] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: /ability name 50$/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('button', { name: /ability name 50$/ }) with timeout 5000ms
+      - waiting for getByRole('button', { name: /ability name 50$/ })
+
+
+      117 |   await expect(page.getByText("Page 2 of 3")).toBeVisible();
+      118 |   await page.getByRole("button", { name: "Next events" }).click();
+    > 119 |   await expect(page.getByRole("button", { name: /ability name 50$/ })).toBeVisible();
+          |                                                                        ^
+      120 |   await expect(page.getByRole("button", { name: "Next events" })).toBeDisabled();
+      121 |   await page.getByRole("button", { name: "Previous events" }).click();
+      122 |   await expect(page.getByText("Page 2 of 3")).toBeVisible();
+        at C:\Users\Juha\Desktop\Projektit\wcl-vod-review\frontend\test\timeline.spec.ts:119:72
+
+    Error Context: test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-desktop\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-desktop\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-desktop\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [mobile] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('button', { name: /ability name 50$/ })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByRole('button', { name: /ability name 50$/ }) with timeout 5000ms
+      - waiting for getByRole('button', { name: /ability name 50$/ })
+
+
+      117 |   await expect(page.getByText("Page 2 of 3")).toBeVisible();
+      118 |   await page.getByRole("button", { name: "Next events" }).click();
+    > 119 |   await expect(page.getByRole("button", { name: /ability name 50$/ })).toBeVisible();
+          |                                                                        ^
+      120 |   await expect(page.getByRole("button", { name: "Next events" })).toBeDisabled();
+      121 |   await page.getByRole("button", { name: "Previous events" }).click();
+      122 |   await expect(page.getByText("Page 2 of 3")).toBeVisible();
+        at C:\Users\Juha\Desktop\Projektit\wcl-vod-review\frontend\test\timeline.spec.ts:119:72
+
+    Error Context: test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-mobile\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-mobile\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\timeline-long-content-pagi-baddb-t-320px-with-reduced-motion-mobile\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [desktop] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion
+    [mobile] › test\timeline.spec.ts:103:5 › long content, pagination and empty reports remain usable at 320px with reduced motion
+  56 passed (59.5s)

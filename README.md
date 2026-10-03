@@ -2,7 +2,7 @@
 
 A web application that synchronizes Warcraft Logs combat reports with video recordings, making it easier to review and analyze World of Warcraft raid encounters.
 
-![Review workspace with synthetic demonstration data](work/goal-improvement/evidence/notebook-desktop.png)
+![Review workspace with synthetic demonstration data](work/goal-improvement/evidence/workspace-after-desktop-viewport.png)
 
 ## What It Does
 
@@ -34,6 +34,16 @@ Click any event on the timeline to jump directly to that moment in the video. Pe
 - Analyzing specific boss mechanics
 - Checking player positioning during key moments
 - Learning from successful pulls
+
+### Find the Right Pull and Moment
+
+- Browse the raid by boss and result, or step through fights with Previous/Next
+- Search events by ability, player or NPC; the event list and timeline show the same matches
+- Inspect precise fight-relative timestamps and choose to watch 3, 5 or 10 seconds before an event
+- Keep the selected fight, filters and event page through refresh and browser Back/Forward
+- Copy a moment link with the current event filters and playback lead-in
+
+The recording and a bounded event list sit together on desktop. On mobile, evidence comes before notes; seeking brings the recording into view, and "Find events" returns to the event list. Unknown fight results are labeled explicitly, and death counts represent occurrences, including repeated deaths after a resurrection.
 
 ### 🔄 Smart Synchronization
 
@@ -144,12 +154,14 @@ Use the existing `ssh vaarattu-server` access to verify a release. The successfu
 2. Paste a Warcraft Logs report URL (e.g., `https://www.warcraftlogs.com/reports/AbCdEfGh`)
 3. Paste a YouTube or Twitch VOD URL
 4. Click "Create timeline"; fight IDs and video timestamps from your links are preserved
-5. Select a fight from the dropdown or timeline
+5. Select a fight from the dropdown or timeline; "Browse fights" filters the raid by boss and result
 6. Pause the video at that fight's start and click "Align fight start to current video time"
-7. Select a cast or death in the event list or canvas to seek the video; filter and page through longer event lists
+7. Search for an ability/player/NPC, choose a playback lead-in if useful, then select a cast or death in the event list or canvas to seek the video
 8. Use Earlier/Later for fine calibration, or unlock the bars to drag them. Fit, zoom and pan buttons are available alongside mouse controls
 9. Use "Save review" to keep your place, or "Copy moment link" to hand off the synchronized moment
-10. Choose "Add note at current time" to record an observation, then "Export notes" for a debrief you can keep or share
+10. Open "Review notes" and choose "Add note at current time" to record an observation, then "Export notes" for a debrief you can keep or share
+
+Event search, type, page and lead-in are restored from the URL. Boss/result filters apply to the browse list; Previous/Next always steps through the full report. A lead-in never changes the displayed event timestamp and cannot make an event outside the recording valid. Saved reviews retain their existing fight/position/calibration format; copied moment links also include the event view. Notes remain private to browser storage.
 
 Unavailable reports, events, video details and players have separate retry controls. Calibration is saved per report/video in this browser; if storage is blocked, it still works for the current session. A shared link or saved note restores its captured calibration without overwriting your browser's calibration until you adjust the sync. Storage failures retain the note draft and show an error; a blocked clipboard reveals a selectable link instead.
 

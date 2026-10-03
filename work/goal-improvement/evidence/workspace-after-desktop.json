@@ -1,0 +1,20 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "pageHeight": 2120,
+  "video": {
+    "top": 327,
+    "height": 564
+  },
+  "events": {
+    "top": 327,
+    "height": 618
+  },
+  "timeline": {
+    "top": 965,
+    "height": 915
+  },
+  "overflow": false
+}

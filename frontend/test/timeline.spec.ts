@@ -97,7 +97,7 @@ test("review controls fit the viewport and remain usable after interaction", asy
   await expect(page.getByRole("status").filter({ hasText: "Video moved to 2:00." })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);
-  await page.screenshot({ path: "../work/goal-improvement/evidence/review-" + testInfo.project.name + ".png", fullPage: true });
+  await page.screenshot({ path: "../work/goal-improvement/evidence/workspace-release/review-" + testInfo.project.name + ".png", fullPage: true });
 });
 
 test("long content, pagination and empty reports remain usable at 320px with reduced motion", async ({ page }) => {
@@ -116,14 +116,14 @@ test("long content, pagination and empty reports remain usable at 320px with red
   await page.getByRole("button", { name: "Next events" }).click();
   await expect(page.getByText("Page 2 of 3")).toBeVisible();
   await page.getByRole("button", { name: "Next events" }).click();
-  await expect(page.getByRole("button", { name: /ability name 50$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "0:51.000 Cast · Shattering roar with a long synthetic ability name 50 Unknown NPC", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next events" })).toBeDisabled();
   await page.getByRole("button", { name: "Previous events" }).click();
   await expect(page.getByText("Page 2 of 3")).toBeVisible();
   await page.getByLabel("Show", { exact: true }).selectOption("Deaths");
   await expect(page.getByText("No tracked events match this filter.")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: "../work/goal-improvement/evidence/narrow-empty-filter.png", fullPage: true });
+  await page.screenshot({ path: "../work/goal-improvement/evidence/workspace-release/narrow-empty-filter.png", fullPage: true });
   await page.route("**/api/wcl/reports/SyntheticReport1", route => route.fulfill({ json: { ...report, fights: [] } }));
   await page.reload();
   await expect(page.getByRole("heading", { name: "No boss fights in this report" })).toBeVisible();

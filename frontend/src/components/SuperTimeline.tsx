@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Fight, Event } from "@/lib/api";
+import { eventName } from "@/lib/events";
+import { fightResult } from "./FightNavigator";
 
 interface EventTrack {
   id: string;
@@ -202,8 +204,7 @@ export default function SuperTimeline({
 
     for (const event of events) {
       if (event.type === "Casts") {
-        const abilityName = event.abilityInfo?.name || event.ability?.name || `Spell ${event.abilityGameID || "unknown"}`;
-        if (abilityName.toLowerCase() === "melee") continue;
+        const abilityName = eventName(event);
 
         const abilityId = event.abilityInfo?.gameID || event.abilityGameID || event.ability?.guid || abilityName;
         const trackId = `cast-${abilityId}`;
@@ -233,7 +234,7 @@ export default function SuperTimeline({
             id: "deaths",
             kind: "death",
             label: "Deaths",
-            detail: `${deathEvents.length} player${deathEvents.length === 1 ? "" : "s"}`,
+            detail: `${deathEvents.length} death event${deathEvents.length === 1 ? "" : "s"}`,
             events: deathEvents.sort((a, b) => a.timestamp - b.timestamp),
           },
         ]
@@ -487,7 +488,7 @@ export default function SuperTimeline({
 
       const isSelected = fight.id === selectedFightId;
       const isHovered = hoveredFight?.id === fight.id;
-      ctx.fillStyle = fight.kill ? (isSelected ? "#10b981" : isHovered ? "#34d399" : "#059669") : isSelected ? "#ef4444" : isHovered ? "#f87171" : "#dc2626";
+      ctx.fillStyle = fight.kill == null ? "#6b7280" : fight.kill ? (isSelected ? "#10b981" : isHovered ? "#34d399" : "#059669") : isSelected ? "#ef4444" : isHovered ? "#f87171" : "#dc2626";
       ctx.fillRect(x, y, Math.max(barWidth, 2), barHeight);
       ctx.strokeStyle = isSelected ? "#fbbf24" : "#1f2937";
       ctx.lineWidth = isSelected ? 3 : 1;
@@ -990,7 +991,7 @@ export default function SuperTimeline({
       >
         <canvas
           role="img"
-          aria-label="Fight timeline with NPC casts and player deaths. Use the fight selector, event list, and timeline controls for keyboard access."
+          aria-label={`Fight timeline: ${events.length} matching events. NPC casts and player deaths. Use the fight selector, event list, and timeline controls for keyboard access.`}
           ref={canvasRef}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -1004,7 +1005,7 @@ export default function SuperTimeline({
           <div className="pointer-events-none absolute left-[218px] top-2 z-10 rounded-md border border-[#45455e] bg-[#1a1a2e] px-3 py-2 text-sm text-white shadow-lg">
             <div className="font-semibold">{hoveredFight.name}</div>
             <div className="text-xs tabular-nums text-gray-400">
-              {formatTime((hoveredFight.endTime - hoveredFight.startTime) / 1000)} · {hoveredFight.kill ? "Kill" : "Wipe"}
+              {formatTime((hoveredFight.endTime - hoveredFight.startTime) / 1000)} · {fightResult(hoveredFight)}
             </div>
           </div>
         )}
