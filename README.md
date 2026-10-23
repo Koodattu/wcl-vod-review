@@ -167,7 +167,7 @@ Unavailable reports, events, video details and players have separate retry contr
 
 ## Local verification with synthetic data
 
-Use Node.js 20.9 or newer, the locked npm dependencies, and Docker. These tests never load `backend/.env`. The integration and browser fixture runners accept only an explicit localhost database named `wcl_goal_test_*`; use a dedicated disposable container because test databases are written and dropped.
+Use Node.js 24.22.1 or a newer patched Node 24 release, the locked npm dependencies, and Docker. These tests never load `backend/.env`. The integration and browser fixture runners accept only an explicit localhost database named `wcl_goal_test_*`; use a dedicated disposable container because test databases are written and dropped.
 
 From the repository root in PowerShell:
 
