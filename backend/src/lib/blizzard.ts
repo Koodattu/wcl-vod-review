@@ -106,7 +106,7 @@ export class BlizzardApiClient {
           tokenType: token_type,
           expiresAt,
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       console.log(`✅ New Blizzard token acquired, expires at: ${expiresAt.toISOString()}`);
@@ -340,7 +340,7 @@ export class BlizzardApiClient {
           achievementId: achievement.id,
           lastUpdated: new Date(),
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       console.log(`✅ Cached new icon for boss: ${bossName} -> ${iconUrl}`);

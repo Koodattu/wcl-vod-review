@@ -37,7 +37,7 @@ app.get("/health", (req, res) => {
 });
 
 // Parse URLs endpoint
-app.post("/api/parse-urls", async (req: express.Request, res: express.Response) => {
+app.post("/api/parse-urls", async (req, res) => {
   try {
     const { wclUrl, vodUrl } = req.body || {};
 
@@ -75,7 +75,7 @@ app.post("/api/parse-urls", async (req: express.Request, res: express.Response) 
 });
 
 // Get WCL report summary
-app.get(["/api/wcl/reports/:code", "/api/wcl/reports/:code/enhanced"], async (req: express.Request, res: express.Response) => {
+app.get(["/api/wcl/reports/:code", "/api/wcl/reports/:code/enhanced"], async (req: express.Request<{ code: string }>, res) => {
   try {
     const { code } = req.params;
 
@@ -118,7 +118,7 @@ app.get(["/api/wcl/reports/:code", "/api/wcl/reports/:code/enhanced"], async (re
 });
 
 // Get events for a specific fight
-app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: express.Response) => {
+app.post("/api/wcl/reports/:code/events", async (req, res) => {
   try {
     const { code } = req.params;
     const { fightId, startTime, endTime, eventTypes } = req.body || {};
@@ -157,7 +157,7 @@ app.post("/api/wcl/reports/:code/events", async (req: express.Request, res: expr
 });
 
 // Get encounter details by encounterID (including journalID)
-app.get("/api/wcl/encounters/:encounterID", async (req: express.Request, res: express.Response) => {
+app.get("/api/wcl/encounters/:encounterID", async (req, res) => {
   try {
     const { encounterID } = req.params;
     const id = parseInt(encounterID);
@@ -180,7 +180,7 @@ app.get("/api/wcl/encounters/:encounterID", async (req: express.Request, res: ex
 });
 
 // Get boss icon by name
-app.get("/api/boss-icon/:bossName", async (req: express.Request, res: express.Response) => {
+app.get("/api/boss-icon/:bossName", async (req, res) => {
   try {
     const { bossName } = req.params;
 
@@ -208,7 +208,7 @@ app.get("/api/boss-icon/:bossName", async (req: express.Request, res: express.Re
 });
 
 // Manually trigger achievement update (for testing/admin purposes)
-app.post("/api/admin/update-achievements", async (req: express.Request, res: express.Response) => {
+app.post("/api/admin/update-achievements", async (req, res) => {
   try {
     await blizzardClient.updateAchievements();
     res.json({ message: "Achievements updated successfully" });
@@ -219,7 +219,7 @@ app.post("/api/admin/update-achievements", async (req: express.Request, res: exp
 });
 
 // Get video metadata (YouTube or Twitch)
-app.get("/api/video-metadata/:platform/:videoId", async (req: express.Request, res: express.Response) => {
+app.get("/api/video-metadata/:platform/:videoId", async (req, res) => {
   try {
     const { platform, videoId } = req.params;
 

@@ -167,7 +167,7 @@ Unavailable reports, events, video details and players have separate retry contr
 
 ## Local verification with synthetic data
 
-Use Node.js 24.22.1 or a newer patched Node 24 release, the locked npm dependencies, and Docker. These tests never load `backend/.env`. The integration and browser fixture runners accept only an explicit localhost database named `wcl_goal_test_*`; use a dedicated disposable container because test databases are written and dropped.
+Use Node.js 26.13.1 or a newer patched Node 26 release, the locked npm dependencies, and Docker. These tests never load `backend/.env`. The integration and browser fixture runners accept only an explicit localhost database named `wcl_goal_test_*`; use a dedicated disposable container because test databases are written and dropped.
 
 From the repository root in PowerShell:
 
@@ -177,7 +177,7 @@ npm.cmd --prefix frontend ci
 Push-Location frontend
 npx.cmd --no-install playwright install chromium
 Pop-Location
-docker run --name wcl-review-tests --detach --publish 127.0.0.1:57117:27017 --memory 512m --cpus 1 mongo:7.0.40@sha256:be3d6353f3ea3fd3d22e016d19da20fcd6937eda0739eb6d2aeed335baa60f90
+docker run --name wcl-review-tests --detach --publish 127.0.0.1:57117:27017 --memory 512m --cpus 1 mongo:7.0.48@sha256:884c055bff8b7144ca44830d01826facd3083b33c4dea44b94a1476c62de3c32
 $env:MONGODB_TEST_URI='mongodb://127.0.0.1:57117/wcl_goal_test_review'
 npm.cmd --prefix backend test
 npm.cmd --prefix backend run test:integration

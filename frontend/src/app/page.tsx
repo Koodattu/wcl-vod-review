@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import SavedReviews from "@/components/SavedReviews";
 import { parseURLs } from "@/lib/api";
 
+function focusError(alert: HTMLDivElement | null) {
+  alert?.focus();
+}
+
 export default function Home() {
   const [wclUrl, setWclUrl] = useState("");
   const [vodUrl, setVodUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
   const submitting = useRef(false);
   const router = useRouter();
 
@@ -30,7 +33,6 @@ export default function Home() {
       router.push("/timeline?" + params.toString());
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not open this review. Please retry.");
-      requestAnimationFrame(() => errorRef.current?.focus());
       submitting.current = false;
       setLoading(false);
     }
@@ -60,7 +62,7 @@ export default function Home() {
               spellCheck={false} autoCapitalize="none" required />
             <p id="vod-help" className="text-sm text-gray-400">Use the recording of the same raid. Video timestamps in the link are kept.</p>
           </div>
-          {error && <div ref={errorRef} role="alert" tabIndex={-1} className="rounded-lg border border-red-900 bg-[#2a1313] p-4 text-sm text-red-200">{error}</div>}
+          {error && <div ref={focusError} role="alert" tabIndex={-1} className="rounded-lg border border-red-900 bg-[#2a1313] p-4 text-sm text-red-200">{error}</div>}
           <button type="submit" disabled={loading} className="button button-primary w-full">{loading ? "Opening review…" : "Create timeline"}</button>
         </form>
         <p className="mt-5 text-sm text-gray-400">Select a fight, align the video, then jump straight to an event. Calibration is saved in this browser.</p>

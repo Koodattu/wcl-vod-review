@@ -182,7 +182,7 @@ export class WarcraftLogsClient {
           tokenType: token_type,
           expiresAt,
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
 
       console.log(`✅ WCL access token acquired, expires at: ${expiresAt.toISOString()}`);
@@ -681,7 +681,7 @@ export class WarcraftLogsClient {
           };
 
           console.log(`Caching ${events.length} events for ${reportCode} fight ${fightId}`);
-          await CachedEvents.findOneAndUpdate(cacheKey, cacheData, { upsert: true, new: true });
+          await CachedEvents.findOneAndUpdate(cacheKey, cacheData, { upsert: true, returnDocument: "after" });
           console.log(`✅ Cached events for ${reportCode} fight ${fightId}`);
         } catch (dbError: any) {
           console.error(`❌ Database error saving events for ${reportCode} fight ${fightId}:`, dbError.message);
